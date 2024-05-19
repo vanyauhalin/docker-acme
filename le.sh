@@ -2,6 +2,21 @@
 
 set -ue
 
+help() {
+	echo "Usage: le.sh <command>"
+	echo
+	echo "Subcommands:"
+	echo "  help     Show this help message"
+	echo "  options  Show the letsencrypt options"
+	echo "  dirs     Create the letsencrypt directories"
+	echo "  self     Generate a self-signed certificate"
+	echo "  unself   Remove the self-signed certificate"
+	echo "  test     Obtain a test certificate"
+	echo "  prod     Obtain a production certificate"
+	echo "  job      Schedule a job to renew the certificate"
+	echo "  renew    Renew the certificate"
+}
+
 main() {
 	cmd=${1-""}
 	if [ "$cmd" = "" ];        then help;    return 1; fi
@@ -250,21 +265,6 @@ self_dir() {
 	file=$(realpath "$0")
 	dir=$(dirname "$file")
 	echo "$dir/self"
-}
-
-help() {
-	echo "Usage: le.sh <command>"
-	echo
-	echo "Subcommands:"
-	echo "  help     Show this help message"
-	echo "  options  Show the letsencrypt options"
-	echo "  dirs     Create the letsencrypt directories"
-	echo "  self     Generate a self-signed certificate"
-	echo "  unself   Remove the self-signed certificate"
-	echo "  test     Obtain a test certificate"
-	echo "  prod     Obtain a production certificate"
-	echo "  job      Schedule a job to renew the certificate"
-	echo "  renew    Renew the certificate"
 }
 
 log() {
