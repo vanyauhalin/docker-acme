@@ -8,11 +8,11 @@ ENV \
 	LE_WORK_DIR=/var/lib/letsencrypt
 WORKDIR /srv
 COPY entrypoint.sh /
+COPY job.sh .
 COPY le.sh .
 RUN set -e && \
 	apk add --no-cache certbot openssl && \
-	chmod +x /entrypoint.sh && \
-	chmod +x le.sh && \
+	chmod +x /entrypoint.sh job.sh le.sh && \
 	mkdir /etc/nginx/snippets && \
 	cd /etc/nginx/snippets && \
 		wget --output-document=options-ssl-nginx.conf "https://raw.githubusercontent.com/certbot/certbot/v$CERTBOT_VERSION/certbot-nginx/certbot_nginx/_internal/tls_configs/options-ssl-nginx.conf" && \

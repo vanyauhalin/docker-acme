@@ -195,14 +195,11 @@ prod() {
 }
 
 job() {
-	file=$(realpath "$0")
-	dir=$(dirname "$file")
-	sh="#!/bin/sh\n"
-	sh="$sh\"$file\" options >> \"$dir/le.log\" 2>&1\n"
-	sh="$sh\"$file\" renew >> \"$dir/le.log\" 2>&1\n"
-	file=/etc/periodic/weekly/le
-	printf "%b" "$sh" > "$file"
-	chmod +x "$file"
+	job="$LE_CRON \"$(job_file)\" >> \"$(log_file)\" 2>&1"
+	ls=$(crontab -l 2> /dev/null)
+	if ! echo "$ls" | grep -F "$job" > /dev/null 2>&1; then
+		(echo "$ls"; echo "$job") | crontab -
+	fi
 }
 
 renew() {
@@ -265,6 +262,18 @@ self_dir() {
 	file=$(realpath "$0")
 	dir=$(dirname "$file")
 	echo "$dir/self"
+}
+
+job_file() {
+	file=$(realpath "$0")
+	dir=$(dirname "$file")
+	echo "$dir/job.sh"
+}
+
+log_file() {
+	file=$(realpath "$0")
+	dir=$(dirname "$file")
+	echo "$dir/le.log"
 }
 
 log() {
