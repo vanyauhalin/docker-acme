@@ -93,6 +93,8 @@ options() {
 }
 
 dirs() {
+	log "Creating the letsencrypt directories"
+
 	mkdir -p \
 		"$LE_CONFIG_DIR" \
 		"$LE_LOGS_DIR" \
@@ -115,6 +117,8 @@ dirs() {
 }
 
 self() {
+	log "Generating a self-signed certificate"
+
 	live_dir="$LE_CONFIG_DIR/live"
 	if [ ! -d "$live_dir" ]; then
 		log "The '$live_dir' directory does not exist"
@@ -177,9 +181,13 @@ self() {
 	done
 
 	IFS="$ifs"
+
+	log "The self-signed certificate has been generated"
 }
 
 unself() {
+	log "Removing the self-signed certificate"
+
 	live_dir="$LE_CONFIG_DIR/live"
 	if [ ! -d "$live_dir" ]; then
 		log "The '$live_dir' directory does not exist"
@@ -220,26 +228,34 @@ unself() {
 	done
 
 	IFS="$ifs"
+
+	log "The self-signed certificate has been removed"
 }
 
 test() {
+	log "Obtaining a test certificate"
 	# shellcheck disable=SC2046
 	certbot certonly --staging $(options)
 	reown
 	nginx -s reload
+	log "The test certificate has been obtained"
 }
 
 prod() {
+	log "Obtaining a production certificate"
 	# shellcheck disable=SC2046
 	certbot certonly $(options)
 	reown
 	nginx -s reload
+	log "The production certificate has been obtained"
 }
 
 renew() {
+	log "Renewing the certificate"
 	certbot renew --non-interactive
 	reown
 	nginx -s reload
+	log "The certificate has been renewed"
 }
 
 reown() {
