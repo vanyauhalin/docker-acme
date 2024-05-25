@@ -301,10 +301,12 @@ job() {
 	log "Running the job to renew the certificate"
 	status=0
 	rid=$(uuid)
+
 	ping start "$rid"
 	options
 	_=$(renew) || status=$?
 	ping $status "$rid"
+
 	log "The job to renew the certificate has been completed with the status '$status'"
 	return $status
 }
