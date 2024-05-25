@@ -56,6 +56,9 @@ main() {
 	"renew")
 		renew
 		;;
+	"schedule")
+		schedule
+		;;
 	"job")
 		job
 		;;
