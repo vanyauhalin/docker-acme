@@ -162,9 +162,9 @@ self() {
 		chgrp nginx "$file"
 		chmod 640 "$file"
 
-		for name in "chain" "fullchain" "privkey"; do
-			ln -s "$self/$name.pem" "$live/$name.pem"
-			chmod 777 "$live/$name.pem"
+		for base in "chain.pem" "fullchain.pem" "privkey.pem"; do
+			ln -s "$self/$base" "$live/$base"
+			chmod 777 "$live/$base"
 		done
 	done
 
@@ -202,8 +202,8 @@ unself() {
 
 		log "Removing the self-signed certificate for the domain '$domain'"
 
-		for name in "chain" "fullchain" "privkey"; do
-			link="$live/$name.pem"
+		for base in "chain.pem" "fullchain.pem" "privkey.pem"; do
+			link="$live/$base"
 			traget=$(realpath "$link")
 			rm "$link" "$traget"
 		done
