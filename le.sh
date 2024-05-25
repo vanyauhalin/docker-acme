@@ -3,7 +3,7 @@
 set -ue
 
 help() {
-	echo "Usage: le.sh <command>"
+	echo "Usage: le.sh <subcommand>"
 	echo
 	echo "Subcommands:"
 	echo "  help      Show this help message"
