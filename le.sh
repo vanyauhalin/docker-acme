@@ -80,10 +80,12 @@ options() {
 
 	ifs="$IFS"
 	IFS=","
+
 	for domain in $LE_DOMAINS; do
 		s="${s} --webroot-path ${LE_WEBROOT_DIR}/${domain}"
 		s="${s} --domain ${domain}"
 	done
+
 	IFS="$ifs"
 
 	echo "$s"
@@ -95,15 +97,19 @@ dirs() {
 		"$LE_LOGS_DIR" \
 		"$LE_WEBROOT_DIR" \
 		"$LE_WORK_DIR"
+
 	mkdir -p \
 		"$LE_CONFIG_DIR/live" \
 		"$(dirname "$(realpath "$0")")/self"
+
 	ifs="$IFS"
 	IFS=","
+
 	for domain in $LE_DOMAINS; do
 		dir="${LE_WEBROOT_DIR}/${domain}"
 		mkdir -p "$dir"
 	done
+
 	IFS="$ifs"
 }
 
