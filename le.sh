@@ -281,13 +281,20 @@ reown() {
 }
 
 schedule() {
+	log "Scheduling a job to renew the certificate"
+
 	entry_file=$(realpath "$0")
 	log_file="$(dirname "$(realpath "$0")")/le.log"
 	job="$LE_CRON \"$entry_file\" job >> \"$log_file\" 2>&1"
+
 	table=$(crontab -l 2> /dev/null)
-	if ! echo "$table" | grep -F "$job" > /dev/null 2>&1; then
-		(echo "$table"; echo "$job") | crontab -
+	if echo "$table" | grep -F "$job" > /dev/null 2>&1; then
+		log "The job to renew the certificate is already scheduled"
+		return
 	fi
+
+	(echo "$table"; echo "$job") | crontab -
+	log "The job to renew the certificate has been scheduled"
 }
 
 job() {
