@@ -29,20 +29,44 @@ help() {
 
 main() {
 	cmd=${1-""}
-	if [ "$cmd" = "" ];        then help;    return 1; fi
-	if [ "$cmd" = "help" ];    then help;    return;   fi
-	log "Executing the '$cmd' command"
-	if [ "$cmd" = "options" ]; then options; return;   fi
-	# shellcheck disable=SC3044
-	if [ "$cmd" = "dirs" ];    then dirs;    return;   fi
-	if [ "$cmd" = "self" ];    then self;    return;   fi
-	if [ "$cmd" = "unself" ];  then unself;  return;   fi
-	if [ "$cmd" = "test" ];    then test;    return;   fi
-	if [ "$cmd" = "prod" ];    then prod;    return;   fi
-	if [ "$cmd" = "job" ];     then job;     return;   fi
-	if [ "$cmd" = "renew" ];   then renew;   return;   fi
-	log "Unknown the command '$cmd'"
-	return 1
+	case "$cmd" in
+	"")
+		help
+		return 1
+		;;
+	"help")
+		help
+		;;
+	"options")
+		options
+		;;
+	"dirs")
+		# shellcheck disable=SC3044
+		dirs
+		;;
+	"self")
+		self
+		;;
+	"unself")
+		unself
+		;;
+	"test")
+		test
+		;;
+	"prod")
+		prod
+		;;
+	"job")
+		job
+		;;
+	"renew")
+		renew
+		;;
+	*)
+		log "Unknown the command '$1'"
+		return 1
+		;;
+	esac
 }
 
 options() {
