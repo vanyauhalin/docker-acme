@@ -13,7 +13,6 @@ echo \
 	"$LE_WORK_DIR" \
 	> /dev/null
 
-./le.sh options
 ./le.sh dirs
 ./le.sh self
 

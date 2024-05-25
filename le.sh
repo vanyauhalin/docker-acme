@@ -7,7 +7,6 @@ help() {
 	echo
 	echo "Subcommands:"
 	echo "  help      Show this help message"
-	echo "  options   Show the letsencrypt options"
 	echo "  dirs      Create the letsencrypt directories"
 	echo "  self      Generate a self-signed certificate"
 	echo "  unself    Remove the self-signed certificate"
@@ -38,9 +37,6 @@ main() {
 	"help")
 		help
 		;;
-	"options")
-		options
-		;;
 	"dirs")
 		# shellcheck disable=SC3044
 		dirs
@@ -68,28 +64,6 @@ main() {
 		return 1
 		;;
 	esac
-}
-
-options() {
-	s="--agree-tos"
-	s="${s} --no-eff-email"
-	s="${s} --config-dir ${LE_CONFIG_DIR}"
-	s="${s} --work-dir ${LE_WORK_DIR}"
-	s="${s} --logs-dir ${LE_LOGS_DIR}"
-	s="${s} --email ${LE_EMAIL}"
-	s="${s} --webroot"
-
-	ifs="$IFS"
-	IFS=","
-
-	for domain in $LE_DOMAINS; do
-		s="${s} --webroot-path ${LE_WEBROOT_DIR}/${domain}"
-		s="${s} --domain ${domain}"
-	done
-
-	IFS="$ifs"
-
-	echo "$s"
 }
 
 dirs() {
@@ -258,6 +232,28 @@ renew() {
 	log "The certificate has been renewed"
 }
 
+options() {
+	s="--agree-tos"
+	s="${s} --no-eff-email"
+	s="${s} --config-dir ${LE_CONFIG_DIR}"
+	s="${s} --work-dir ${LE_WORK_DIR}"
+	s="${s} --logs-dir ${LE_LOGS_DIR}"
+	s="${s} --email ${LE_EMAIL}"
+	s="${s} --webroot"
+
+	ifs="$IFS"
+	IFS=","
+
+	for domain in $LE_DOMAINS; do
+		s="${s} --webroot-path ${LE_WEBROOT_DIR}/${domain}"
+		s="${s} --domain ${domain}"
+	done
+
+	IFS="$ifs"
+
+	echo "$s"
+}
+
 reown() {
 	archive_dir="$LE_CONFIG_DIR/archive"
 	live_dir="$LE_CONFIG_DIR/live"
@@ -319,7 +315,6 @@ job() {
 	rid=$(uuid)
 
 	ping start "$rid"
-	options
 	_=$(renew) || status=$?
 	ping $status "$rid"
 
