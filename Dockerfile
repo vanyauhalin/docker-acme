@@ -9,7 +9,7 @@ ENV \
 WORKDIR /srv
 COPY entrypoint.sh /
 COPY le.sh .
-RUN set -e && \
+RUN \
 	apk add --no-cache certbot openssl && \
 	chmod +x /entrypoint.sh le.sh && \
 	mkdir /etc/nginx/snippets && \
