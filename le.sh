@@ -15,6 +15,16 @@ help() {
 	echo "  prod     Obtain a production certificate"
 	echo "  job      Schedule a job to renew the certificate"
 	echo "  renew    Renew the certificate"
+	echo
+	echo "Variables:"
+	echo "  HC_URL          The healthchecks.io ping URL"
+	echo "  LE_CONFIG_DIR   The letsencrypt configuration directory"
+	echo "  LE_CRON         The cron expression to renew the certificate"
+	echo "  LE_DOMAINS      The comma-separated list of domains"
+	echo "  LE_EMAIL        The email address"
+	echo "  LE_LOGS_DIR     The letsencrypt logs directory"
+	echo "  LE_WEBROOT_DIR  The letsencrypt webroot directory"
+	echo "  LE_WORK_DIR     The letsencrypt work directory"
 }
 
 main() {
