@@ -94,9 +94,10 @@ dirs() {
 		"$LE_CONFIG_DIR" \
 		"$LE_LOGS_DIR" \
 		"$LE_WEBROOT_DIR" \
-		"$LE_WORK_DIR" \
-		"$(live_dir)" \
-		"$(self_dir)"
+		"$LE_WORK_DIR"
+	mkdir -p \
+		"$LE_CONFIG_DIR/live" \
+		"$(dirname "$(realpath "$0")")/self"
 	ifs="$IFS"
 	IFS=","
 	for domain in $LE_DOMAINS; do
@@ -107,13 +108,13 @@ dirs() {
 }
 
 self() {
-	live_dir=$(live_dir)
+	live_dir="$LE_CONFIG_DIR/live"
 	if [ ! -d "$live_dir" ]; then
 		log "The '$live_dir' directory does not exist"
 		return 1
 	fi
 
-	self_dir=$(self_dir)
+	self_dir="$(dirname "$(realpath "$0")")/self"
 	if [ ! -d "$self_dir" ]; then
 		log "The '$self_dir' directory does not exist"
 		return 1
@@ -172,13 +173,13 @@ self() {
 }
 
 unself() {
-	live_dir=$(live_dir)
+	live_dir="$LE_CONFIG_DIR/live"
 	if [ ! -d "$live_dir" ]; then
 		log "The '$live_dir' directory does not exist"
 		return 1
 	fi
 
-	self_dir=$(self_dir)
+	self_dir="$(dirname "$(realpath "$0")")/self"
 	if [ ! -d "$self_dir" ]; then
 		log "The '$self_dir' directory does not exist"
 		return 1
@@ -243,9 +244,9 @@ job() {
 }
 
 reown() {
-	archive_dir=$(archive_dir)
-	live_dir=$(live_dir)
-	renewal_dir=$(renewal_dir)
+	archive_dir="$LE_CONFIG_DIR/archive"
+	live_dir="$LE_CONFIG_DIR/live"
+	renewal_dir="$LE_CONFIG_DIR/renewal"
 
 	ifs="$IFS"
 	IFS=","
@@ -278,24 +279,6 @@ reown() {
 	done
 
 	IFS="$ifs"
-}
-
-archive_dir() {
-	echo "$LE_CONFIG_DIR/archive"
-}
-
-live_dir() {
-	echo "$LE_CONFIG_DIR/live"
-}
-
-renewal_dir() {
-	echo "$LE_CONFIG_DIR/renewal"
-}
-
-self_dir() {
-	file=$(realpath "$0")
-	dir=$(dirname "$file")
-	echo "$dir/self"
 }
 
 job_file() {
