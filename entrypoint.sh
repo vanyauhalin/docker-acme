@@ -20,7 +20,7 @@ echo \
 (
 	sleep 5
 	./le.sh unself
-	./le.sh job
+	./le.sh schedule
 	crond
 ) &
 

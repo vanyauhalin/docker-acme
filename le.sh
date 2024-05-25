@@ -6,15 +6,16 @@ help() {
 	echo "Usage: le.sh <command>"
 	echo
 	echo "Subcommands:"
-	echo "  help     Show this help message"
-	echo "  options  Show the letsencrypt options"
-	echo "  dirs     Create the letsencrypt directories"
-	echo "  self     Generate a self-signed certificate"
-	echo "  unself   Remove the self-signed certificate"
-	echo "  test     Obtain a test certificate"
-	echo "  prod     Obtain a production certificate"
-	echo "  renew    Renew the certificate"
-	echo "  job      Schedule a job to renew the certificate"
+	echo "  help      Show this help message"
+	echo "  options   Show the letsencrypt options"
+	echo "  dirs      Create the letsencrypt directories"
+	echo "  self      Generate a self-signed certificate"
+	echo "  unself    Remove the self-signed certificate"
+	echo "  test      Obtain a test certificate"
+	echo "  prod      Obtain a production certificate"
+	echo "  renew     Renew the certificate"
+	echo "  schedule  Schedule a job to renew the certificate"
+	echo "  job       Run the job to renew the certificate"
 	echo
 	echo "Variables:"
 	echo "  HC_URL          The healthchecks.io ping URL"
@@ -241,14 +242,6 @@ renew() {
 	nginx -s reload
 }
 
-job() {
-	job="$LE_CRON \"$(job_file)\" >> \"$(log_file)\" 2>&1"
-	ls=$(crontab -l 2> /dev/null)
-	if ! echo "$ls" | grep -F "$job" > /dev/null 2>&1; then
-		(echo "$ls"; echo "$job") | crontab -
-	fi
-}
-
 reown() {
 	archive_dir="$LE_CONFIG_DIR/archive"
 	live_dir="$LE_CONFIG_DIR/live"
@@ -287,16 +280,34 @@ reown() {
 	IFS="$ifs"
 }
 
-job_file() {
-	file=$(realpath "$0")
-	dir=$(dirname "$file")
-	echo "$dir/job.sh"
+schedule() {
+	entry_file=$(realpath "$0")
+	log_file="$(dirname "$(realpath "$0")")/le.log"
+	job="$LE_CRON \"$entry_file\" job >> \"$log_file\" 2>&1"
+	table=$(crontab -l 2> /dev/null)
+	if ! echo "$table" | grep -F "$job" > /dev/null 2>&1; then
+		(echo "$table"; echo "$job") | crontab -
+	fi
 }
 
-log_file() {
-	file=$(realpath "$0")
-	dir=$(dirname "$file")
-	echo "$dir/le.log"
+job() {
+	log "Running the job to renew the certificate"
+	status=0
+	rid=$(uuid)
+	ping start "$rid"
+	options
+	_=$(renew) || status=$?
+	ping $status "$rid"
+	log "The job to renew the certificate has been completed with the status '$status'"
+	return $status
+}
+
+ping() {
+	wget --output-document - --timeout 10 --tries 5 "$HC_URL$1?rid=$2"
+}
+
+uuid() {
+	cat /proc/sys/kernel/random/uuid
 }
 
 log() {
