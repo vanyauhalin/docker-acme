@@ -13,8 +13,8 @@ help() {
 	echo "  unself   Remove the self-signed certificate"
 	echo "  test     Obtain a test certificate"
 	echo "  prod     Obtain a production certificate"
-	echo "  job      Schedule a job to renew the certificate"
 	echo "  renew    Renew the certificate"
+	echo "  job      Schedule a job to renew the certificate"
 	echo
 	echo "Variables:"
 	echo "  HC_URL          The healthchecks.io ping URL"
@@ -56,11 +56,11 @@ main() {
 	"prod")
 		prod
 		;;
-	"job")
-		job
-		;;
 	"renew")
 		renew
+		;;
+	"job")
+		job
 		;;
 	*)
 		log "Unknown the command '$1'"
@@ -228,18 +228,18 @@ prod() {
 	nginx -s reload
 }
 
+renew() {
+	certbot renew --non-interactive
+	reown
+	nginx -s reload
+}
+
 job() {
 	job="$LE_CRON \"$(job_file)\" >> \"$(log_file)\" 2>&1"
 	ls=$(crontab -l 2> /dev/null)
 	if ! echo "$ls" | grep -F "$job" > /dev/null 2>&1; then
 		(echo "$ls"; echo "$job") | crontab -
 	fi
-}
-
-renew() {
-	certbot renew --non-interactive
-	reown
-	nginx -s reload
 }
 
 reown() {
