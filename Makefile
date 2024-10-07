@@ -1,8 +1,8 @@
 .PHONY: help
 help: # Show help information.
-	@echo "recipes:"
+	@echo "Recipes:"
 	@grep --extended-regexp "^[a-z-]+: #" "$(MAKEFILE_LIST)" | \
-		awk 'BEGIN {FS = ": # "}; {printf "  %-8s%s\n", $$1, $$2}'
+		awk 'BEGIN {FS = ": # "}; {printf "  %-9s%s\n", $$1, $$2}'
 
 .PHONY: build
 build: # Build the Docker image.
