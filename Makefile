@@ -1,9 +1,5 @@
 .DEFAULT_GOAL := help
 
-.PHONY: all
-all: # Run all recipes.
-all: help
-
 .PHONY: help
 help: # Show help information.
 	@echo "recipes:"
