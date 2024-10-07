@@ -17,14 +17,14 @@ help() {
 	echo "  job       Run the job to renew the certificate"
 	echo
 	echo "Variables:"
-	echo "  HC_URL          The healthchecks.io ping URL"
-	echo "  LE_CONFIG_DIR   The letsencrypt configuration directory"
-	echo "  LE_CRON         The cron expression to renew the certificate"
-	echo "  LE_DOMAINS      The comma-separated list of domains"
-	echo "  LE_EMAIL        The email address"
-	echo "  LE_LOGS_DIR     The letsencrypt logs directory"
-	echo "  LE_WEBROOT_DIR  The letsencrypt webroot directory"
-	echo "  LE_WORK_DIR     The letsencrypt work directory"
+	echo "  LE_HEALTHCHECKS_URL  The healthchecks.io ping URL"
+	echo "  LE_CONFIG_DIR        The letsencrypt configuration directory"
+	echo "  LE_CRON              The cron expression to renew the certificate"
+	echo "  LE_DOMAINS           The comma-separated list of domains"
+	echo "  LE_EMAIL             The email address"
+	echo "  LE_LOGS_DIR          The letsencrypt logs directory"
+	echo "  LE_WEBROOT_DIR       The letsencrypt webroot directory"
+	echo "  LE_WORK_DIR          The letsencrypt work directory"
 }
 
 main() {
@@ -326,7 +326,7 @@ job() {
 }
 
 ping() {
-	wget --output-document - --timeout 10 --tries 5 "$HC_URL$1?rid=$2"
+	wget --output-document - --timeout 10 --tries 5 "$LE_HEALTHCHECKS_URL$1?rid=$2"
 }
 
 uuid() {

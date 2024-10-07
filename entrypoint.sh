@@ -3,7 +3,7 @@
 set -ue
 
 echo \
-	"$HC_URL" \
+	"$LE_HEALTHCHECKS_URL" \
 	"$LE_CONFIG_DIR" \
 	"$LE_CRON" \
 	"$LE_DOMAINS" \
