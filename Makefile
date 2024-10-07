@@ -1,5 +1,3 @@
-.DEFAULT_GOAL := help
-
 .PHONY: help
 help: # Show help information.
 	@echo "recipes:"
