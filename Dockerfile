@@ -1,14 +1,10 @@
-FROM vanyauhalin/nginx
-ENV \
-	LE_CONFIG_DIR=/etc/letsencrypt \
-	LE_LOGS_DIR=/var/log/letsencrypt \
-	LE_WEBROOT_DIR=/var/www \
-	LE_WORK_DIR=/var/lib/letsencrypt
-WORKDIR /srv
-COPY entrypoint.sh /
-COPY le.sh .
+FROM alpine:3.20.3
+COPY ae.sh /usr/local/bin/ae
 RUN \
-	apk add --no-cache certbot openssl && \
-	chmod +x /entrypoint.sh le.sh
-ENTRYPOINT ["/entrypoint.sh"]
-CMD ["nginx", "-g", "daemon off;"]
+# Install dependencies
+	apk add --no-cache --update docker openssl && \
+	wget --no-verbose --output-document=/usr/local/bin/acme \
+		https://raw.githubusercontent.com/acmesh-official/acme.sh/refs/tags/3.0.9/acme.sh && \
+# Make scripts executable
+	chmod +x /usr/local/bin/acme /usr/local/bin/ae
+CMD ["tail", "-f", "/dev/null"]
