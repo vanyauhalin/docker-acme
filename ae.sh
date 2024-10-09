@@ -161,7 +161,7 @@ reload() {
 	status=0
 
 	id=$(
-		docker ps --filter "volume=$AE_CONFIG_VOLUME" --quiet | \
+		docker ps --all --filter "volume=$AE_CONFIG_VOLUME" --quiet | \
 		grep -v "$(hostname)" | \
 		head -n 1
 	)
