@@ -152,11 +152,11 @@ restart() {
 	status=0
 
 	id=$(
-		wget \
-			--header="Content-Type: application/json" \
-			--method=GET \
-			--output-document=- \
-			--quiet \
+		curl \
+			--header "Content-Type: application/json" \
+			--output - \
+			--request GET \
+			--silent \
 			--unix-socket "$AE_DOCKER_SOCKET" \
 			"${AE_DOCKER_URL}containers/json?all=true&filters={\"volume\":[\"$AE_CONFIG_VOLUME\"]}" | \
 		grep -v "$(hostname)" | \
@@ -169,11 +169,11 @@ restart() {
 	fi
 
 	_=$(
-		wget \
-			--header="Content-Type: application/json" \
-			--method=POST \
-			--output-document=- \
-			--quiet \
+		curl \
+			--header "Content-Type: application/json" \
+			--output - \
+			--request POST \
+			--silent \
 			--unix-socket "$AE_DOCKER_SOCKET" \
 			"${AE_DOCKER_URL}containers/$id/restart"
 	) || status=$?
@@ -191,11 +191,11 @@ reload() {
 	status=0
 
 	id=$(
-		wget \
-			--header="Content-Type: application/json" \
-			--method=GET \
-			--output-document=- \
-			--quiet \
+		curl \
+			--header "Content-Type: application/json" \
+			--output - \
+			--request GET \
+			--silent \
 			--unix-socket "$AE_DOCKER_SOCKET" \
 			"${AE_DOCKER_URL}containers/json?filters={\"volume\":[\"$AE_CONFIG_VOLUME\"]}" | \
 		grep -v "$(hostname)" | \
@@ -213,18 +213,18 @@ reload() {
 	fi
 
 	id=$(
-		wget \
-			--header="Content-Type: application/json" \
-			--method=POST \
-			--output-document=- \
-			--quiet \
+		curl \
+			--header "Content-Type: application/json" \
+			--output - \
+			--request POST \
+			--silent \
 			--unix-socket "$AE_DOCKER_SOCKET" \
-			--body-data='{
-				"AttachStdin": false,
-				"AttachStdout": true,
-				"AttachStderr": true,
-				"Tty": false,
-				"Cmd": ["nginx", "-s", "reload"]
+			--data '{
+					"AttachStdin": false,
+					"AttachStdout": true,
+					"AttachStderr": true,
+					"Tty": false,
+					"Cmd": ["nginx", "-s", "reload"]
 			}' \
 			"${AE_DOCKER_URL}containers/$id/exec" | \
 		grep -o '"Id":"[^"]*"' | \
@@ -242,14 +242,14 @@ reload() {
 	fi
 
 	_=$(
-		wget \
-			--header="Content-Type: application/json" \
-			--method=POST \
-			--output-document=- \
-			--quiet \
+		curl \
+			--data '{"Detach": false, "Tty": false}' \
+			--header "Content-Type: application/json" \
+			--output - \
+			--request POST \
+			--silent \
 			--unix-socket /var/run/docker.sock \
-			--body-data='{"Detach": false, "Tty": false}' \
-			"${AE_DOCKER_URL}exec/$id/start" \
+			"${AE_DOCKER_URL}exec/$id/start"
 	) || status=$?
 
 	if [ $status -ne 0 ]; then
