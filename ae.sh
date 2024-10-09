@@ -9,8 +9,8 @@ AE_DAYS=30
 # AE_DOMAINS=
 AE_EMAIL=
 # AE_PING_URL=
-AE_SERVER=letsencrypt
-AE_TEST_SERVER=letsencrypt_test
+AE_SERVER="letsencrypt"
+AE_TEST_SERVER="letsencrypt_test"
 AE_WEBROOT_DIR="/var/www"
 
 help() {
@@ -203,7 +203,7 @@ domains() {
 
 	for domain in $AE_DOMAINS; do
 		s="${s} --domain ${domain}"
-		s="${s} --webroot \"${AE_WEBROOT_DIR}/${domain}\""
+		s="${s} --webroot ${AE_WEBROOT_DIR}/${domain}"
 	done
 
 	IFS="$ifs"
