@@ -110,7 +110,7 @@ test() {
 			--issue \
 			--server "$AE_TEST_SERVER" \
 			--test \
-			$(domains)
+			$(options)
 	) || status=$?
 
 	if [ $status -ne 0 ]; then
@@ -138,7 +138,7 @@ prod() {
 			--key-file "$AE_CONFIG_DIR/privkey.pem" \
 			--no-cron \
 			--server "$AE_SERVER" \
-			$(domains)
+			$(options)
 	) || status=$?
 
 	if [ $status -ne 0 ]; then
@@ -262,7 +262,7 @@ reload() {
 	log "INFO The nginx configuration has been reloaded"
 }
 
-domains() {
+options() {
 	s=""
 
 	ifs="$IFS"
