@@ -38,6 +38,10 @@ main() {
 	"help") help;;
 	"self") self;;
 	"test") test;;
+	"prod") prod;;
+	"schedule") schedule;;
+	"run") run;;
+	"renew") renew;;
 	*) return 1;;
 	esac
 }
@@ -147,6 +151,18 @@ prod() {
 	fi
 
 	log "INFO The production certificate has been obtained"
+}
+
+schedule() {
+	echo schedule
+}
+
+run() {
+	echo run
+}
+
+renew() {
+	echo renew
 }
 
 restart() {
