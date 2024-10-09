@@ -55,16 +55,18 @@ self() {
 	IFS=","
 
 	for domain in $AE_DOMAINS; do
+		status=0
+
 		dom_dir="$cfg_dir/$domain"
 		if [ -d "$dom_dir" ]; then
+			cmd_status=1
 			log "ERROR The certificate for the domain '$domain' already exists"
-			return 1
+			continue
 		fi
 
 		log "INFO Generating a self-signed certificate for the domain '$domain'"
 
 		mkdir "$dom_dir"
-		status=0
 
 		_=$(
 			openssl req \
