@@ -32,22 +32,11 @@ help() {
 main() {
 	cmd=${1-""}
 	case "$cmd" in
-	"")
-		help
-		return 1
-		;;
-	"help")
-		help
-		;;
-	"self")
-		self
-		;;
-	"test")
-		test
-		;;
-	*)
-		return 1
-		;;
+	"") help; return 1;;
+	"help") help;;
+	"self") self;;
+	"test") test;;
+	*) return 1;;
 	esac
 }
 
@@ -104,7 +93,7 @@ self() {
 	fi
 
 	log "INFO The self-signed certificate has been generated"
-	reload
+	restart
 }
 
 test() {
@@ -156,8 +145,8 @@ prod() {
 	log "INFO The production certificate has been obtained"
 }
 
-reload() {
-	log "INFO Reloading the nginx configuration"
+restart() {
+	log "INFO Restarting the nginx container"
 	status=0
 
 	id=$(
@@ -171,7 +160,32 @@ reload() {
 		return 1
 	fi
 
-	_=$(docker exec "$id" nginx -t) || status=$?
+	_=$(docker restart "$id") || status=$?
+
+	if [ $status -ne 0 ]; then
+		log "ERROR The container has not been restarted"
+		return $status
+	fi
+
+	log "INFO The container has been restarted"
+}
+
+reload() {
+	log "INFO Reloading the nginx configuration"
+	status=0
+
+	id=$(
+		docker ps --filter "volume=$AE_CONFIG_VOLUME" --quiet | \
+		grep -v "$(hostname)" | \
+		head -n 1
+	)
+
+	if [ -z "$id" ]; then
+		log "ERROR The container has not been found"
+		return 1
+	fi
+
+	_=$(docker exec "$id" nginx -s reload) || status=$?
 
 	if [ $status -ne 0 ]; then
 		log "ERROR The nginx configuration has not been reloaded"
@@ -179,7 +193,6 @@ reload() {
 	fi
 
 	log "INFO The nginx configuration has been reloaded"
-	return 0
 }
 
 domains() {
