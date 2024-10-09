@@ -154,12 +154,13 @@ restart() {
 	id=$(
 		curl \
 			--header "Content-Type: application/json" \
-			--output - \
 			--request GET \
 			--silent \
 			--unix-socket "$AE_DOCKER_SOCKET" \
-			"${AE_DOCKER_URL}containers/json?all=true&filters={\"volume\":[\"$AE_CONFIG_VOLUME\"]}" | \
-		grep -v "$(hostname)" | \
+			"${AE_DOCKER_URL}containers/json?all=true&filters=%7B%22volume%22%3A%5B%22$AE_CONFIG_VOLUME%22%5D%7D" | \
+		grep -o '"Id":"[^"]*"' | \
+		cut -d'"' -f4 | \
+		grep -v "^$(hostname)" | \
 		head -n 1
 	)
 
@@ -171,7 +172,6 @@ restart() {
 	_=$(
 		curl \
 			--header "Content-Type: application/json" \
-			--output - \
 			--request POST \
 			--silent \
 			--unix-socket "$AE_DOCKER_SOCKET" \
@@ -193,12 +193,13 @@ reload() {
 	id=$(
 		curl \
 			--header "Content-Type: application/json" \
-			--output - \
 			--request GET \
 			--silent \
 			--unix-socket "$AE_DOCKER_SOCKET" \
-			"${AE_DOCKER_URL}containers/json?filters={\"volume\":[\"$AE_CONFIG_VOLUME\"]}" | \
-		grep -v "$(hostname)" | \
+			"${AE_DOCKER_URL}containers/json?filters=%7B%22volume%22%3A%5B%22$AE_CONFIG_VOLUME%22%5D%7D" | \
+		grep -o '"Id":"[^"]*"' | \
+		cut -d'"' -f4 | \
+		grep -v "^$(hostname)" | \
 		head -n 1
 	) || status=$?
 
@@ -215,20 +216,19 @@ reload() {
 	id=$(
 		curl \
 			--header "Content-Type: application/json" \
-			--output - \
 			--request POST \
 			--silent \
 			--unix-socket "$AE_DOCKER_SOCKET" \
 			--data '{
-					"AttachStdin": false,
-					"AttachStdout": true,
-					"AttachStderr": true,
-					"Tty": false,
-					"Cmd": ["nginx", "-s", "reload"]
+				"AttachStdin": false,
+				"AttachStdout": true,
+				"AttachStderr": true,
+				"Tty": false,
+				"Cmd": ["nginx", "-s", "reload"]
 			}' \
 			"${AE_DOCKER_URL}containers/$id/exec" | \
 		grep -o '"Id":"[^"]*"' | \
-		sed 's/"Id":"\([^"]*\)"/\1/'
+		cut -d'"' -f4
 	) || status=$?
 
 	if [ $status -ne 0 ]; then
