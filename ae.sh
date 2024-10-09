@@ -2,22 +2,31 @@
 
 set -ue
 
-# AE_DOMAINS
-# AE_EMAIL
 AE_CONFIG_DIR="/etc/acme"
-AE_WEBROOT_DIR="/var/www/"
+AE_CONFIG_VOLUME="/etc/acme"
+AE_DAYS=30
+# AE_CRON=
+# AE_DOMAINS=
+AE_EMAIL=
+# AE_PING_URL=
+AE_SERVER=letsencrypt
+AE_TEST_SERVER=letsencrypt_test
+AE_WEBROOT_DIR="/var/www"
 
 help() {
 	echo "Usage: ae <subcommand>"
 	echo
 	echo "Subcommands:"
-	echo "  help      Show this help message"
-	echo "  self      Generate a self-signed certificate"
-	echo "  test      Obtain a test certificate"
-	echo "  prod      Obtain a production certificate"
-	echo "  renew     Renew the certificate"
-	echo "  schedule  Schedule a job to renew the certificate"
-	echo "  run       Run the job to renew the certificate"
+	echo "  help        "
+	echo "  self        "
+	echo "  test        "
+	echo "  prod        "
+	echo "  renew       "
+	echo "  schedule    "
+	echo "  run         "
+	echo
+	echo "Environment variables:"
+	echo "  AE_DOMAINS      A comma-separated list of domains"
 }
 
 main() {
@@ -75,17 +84,17 @@ self() {
 			> /dev/null 2>&1
 		cp "$dom_dir/fullchain.pem" "$dom_dir/chain.pem"
 
-		# file="$dom_dir/chain.pem"
+		file="$dom_dir/chain.pem"
 		# chgrp nginx "$file"
-		# chmod 644 "$file"
+		chmod 644 "$file"
 
-		# file="$dom_dir/fullchain.pem"
+		file="$dom_dir/fullchain.pem"
 		# chgrp nginx "$file"
-		# chmod 644 "$file"
+		chmod 644 "$file"
 
-		# file="$dom_dir/privkey.pem"
+		file="$dom_dir/privkey.pem"
 		# chgrp nginx "$file"
-		# chmod 640 "$file"
+		chmod 640 "$file"
 	done
 
 	IFS="$ifs"
@@ -94,13 +103,76 @@ self() {
 }
 
 test() {
-	log "Obtaining a test certificate"
+	log "INFO Obtaining a test certificate"
+	status=0
+
 	# shellcheck disable=SC2046
-	acme --issue --staging $(domains)
-	log "The test certificate has been obtained"
+	_=$(
+		acme \
+			--issue \
+			--server "$AE_TEST_SERVER" \
+			--test \
+			$(domains)
+	) || status=$?
+
+	if [ $status -ne 0 ]; then
+		log "ERROR The test certificate has not been obtained"
+		return $status
+	fi
+
+	log "INFO Reloading the nginx configuration"
+
+	_=$(reload) || status=$?
+
+	if [ $status -ne 0 ]; then
+		log "ERROR The nginx configuration has not been reloaded"
+		return $status
+	fi
+
+	log "INFO The test certificate has been obtained"
 }
 
-# --install --no-cron --email
+prod() {
+	log "INFO Obtaining a production certificate"
+	status=0
+
+	# shellcheck disable=SC2046
+	_=$(
+		acme \
+			--ca-file "$AE_CONFIG_DIR/chain.pem" \
+			--cert-file "$AE_CONFIG_DIR/cert.pem" \
+			--days "$AE_DAYS" \
+			--email "$AE_EMAIL" \
+			--fullchain-file "$AE_CONFIG_DIR/fullchain.pem" \
+			--install-cert \
+			--key-file "$AE_CONFIG_DIR/privkey.pem" \
+			--no-cron \
+			--server "$AE_SERVER" \
+			$(domains)
+	) || status=$?
+
+	if [ $status -ne 0 ]; then
+		log "ERROR The production certificate has not been obtained"
+		return $status
+	fi
+
+	log "INFO The production certificate has been obtained"
+}
+
+reload() {
+	id=$(
+		docker ps --filter "volume=$AE_CONFIG_VOLUME" --quiet | \
+		grep -v "$(hostname)" | \
+		head -n 1
+	)
+
+	if [ -z "$id" ]; then
+		log "ERROR The container has not been found"
+		return 1
+	fi
+
+	docker exec "$id" nginx -s reload
+}
 
 domains() {
 	s=""
@@ -110,7 +182,7 @@ domains() {
 
 	for domain in $AE_DOMAINS; do
 		s="${s} --domain ${domain}"
-		s="${s} --webroot ${AE_WEBROOT_DIR}/${domain}"
+		s="${s} --webroot \"${AE_WEBROOT_DIR}/${domain}\""
 	done
 
 	IFS="$ifs"
@@ -123,13 +195,13 @@ log() {
 
 	case "$s" in
 	INFO*)
-		p=$(echo "$s" | cut -d=" " -f=1)
-		r=$(echo "$s" | cut -d=" " -f=2-)
-		s="$p $r"
+		p=$(echo "$s" | cut -d" " -f1)
+		r=$(echo "$s" | cut -d" " -f2-)
+		s="$p  $r"
 		;;
 	esac
 
-	printf "%b" "$(date +'%Y/%m/%d %H:%M:%S') $s\n"
+	printf "%b" "$(date +'%Y-%m-%d %H:%M:%S') $s\n"
 }
 
 main "$@"

@@ -6,6 +6,7 @@ services:
     - 443:443
     volumes:
     - ./etc/acme:/etc/acme
+    - ./var/www:/var/www
     - ./nginx.conf:/etc/nginx/nginx.conf
 
   acme:
@@ -14,3 +15,5 @@ services:
     - /var/run/docker.sock:/var/run/docker.sock
     - ./etc/acme:/etc/acme
     - ./var/www:/var/www
+    environment:
+    - AE_DOMAINS=test.vanyauhalin.me
