@@ -23,9 +23,9 @@ help() {
 	echo "  self        "
 	echo "  test        "
 	echo "  prod        "
-	echo "  renew       "
 	echo "  schedule    "
 	echo "  run         "
+	echo "  renew       "
 	echo
 	echo "Environment variables:"
 	echo "  AE_DOMAINS      A comma-separated list of domains"
