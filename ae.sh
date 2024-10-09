@@ -4,10 +4,12 @@ set -ue
 
 AE_CONFIG_DIR="/etc/acme"
 AE_CONFIG_VOLUME="/etc/acme"
-AE_DAYS=30
 # AE_CRON=
+AE_DAYS=30
+AE_DOCKER_SOCKET="/var/run/docker.sock"
+AE_DOCKER_URL="http://localhost/"
 # AE_DOMAINS=
-AE_EMAIL=
+# AE_EMAIL=
 # AE_PING_URL=
 AE_SERVER="letsencrypt"
 AE_TEST_SERVER="letsencrypt_test"
@@ -150,7 +152,13 @@ restart() {
 	status=0
 
 	id=$(
-		docker ps --all --filter "volume=$AE_CONFIG_VOLUME" --quiet | \
+		wget \
+			--header="Content-Type: application/json" \
+			--method=GET \
+			--output-document=- \
+			--quiet \
+			--unix-socket "$AE_DOCKER_SOCKET" \
+			"${AE_DOCKER_URL}containers/json?all=true&filters={\"volume\":[\"$AE_CONFIG_VOLUME\"]}" | \
 		grep -v "$(hostname)" | \
 		head -n 1
 	)
@@ -160,7 +168,15 @@ restart() {
 		return 1
 	fi
 
-	_=$(docker restart "$id") || status=$?
+	_=$(
+		wget \
+			--header="Content-Type: application/json" \
+			--method=POST \
+			--output-document=- \
+			--quiet \
+			--unix-socket "$AE_DOCKER_SOCKET" \
+			"${AE_DOCKER_URL}containers/$id/restart"
+	) || status=$?
 
 	if [ $status -ne 0 ]; then
 		log "ERROR The container has not been restarted"
@@ -175,17 +191,66 @@ reload() {
 	status=0
 
 	id=$(
-		docker ps --filter "volume=$AE_CONFIG_VOLUME" --quiet | \
+		wget \
+			--header="Content-Type: application/json" \
+			--method=GET \
+			--output-document=- \
+			--quiet \
+			--unix-socket "$AE_DOCKER_SOCKET" \
+			"${AE_DOCKER_URL}containers/json?filters={\"volume\":[\"$AE_CONFIG_VOLUME\"]}" | \
 		grep -v "$(hostname)" | \
 		head -n 1
-	)
+	) || status=$?
+
+	if [ $status -ne 0 ]; then
+		log "ERROR The container has not been found"
+		return $status
+	fi
 
 	if [ -z "$id" ]; then
 		log "ERROR The container has not been found"
 		return 1
 	fi
 
-	_=$(docker exec "$id" nginx -s reload) || status=$?
+	id=$(
+		wget \
+			--header="Content-Type: application/json" \
+			--method=POST \
+			--output-document=- \
+			--quiet \
+			--unix-socket "$AE_DOCKER_SOCKET" \
+			--body-data='{
+				"AttachStdin": false,
+				"AttachStdout": true,
+				"AttachStderr": true,
+				"Tty": false,
+				"Cmd": ["nginx", "-s", "reload"]
+			}' \
+			"${AE_DOCKER_URL}containers/$id/exec" | \
+		grep -o '"Id":"[^"]*"' | \
+		sed 's/"Id":"\([^"]*\)"/\1/'
+	) || status=$?
+
+	if [ $status -ne 0 ]; then
+		log "ERROR The nginx configuration has not been reloaded"
+		return $status
+	fi
+
+	if [ -z "$id" ]; then
+		log "ERROR The nginx configuration has not been reloaded"
+		return 1
+	fi
+
+	_=$(
+		wget \
+			--header="Content-Type: application/json" \
+			--method=POST \
+			--output-document=- \
+			--quiet \
+			--unix-socket /var/run/docker.sock \
+			--body-data='{"Detach": false, "Tty": false}' \
+			"${AE_DOCKER_URL}exec/$id/start" \
+	) || status=$?
 
 	if [ $status -ne 0 ]; then
 		log "ERROR The nginx configuration has not been reloaded"
