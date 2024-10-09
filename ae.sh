@@ -53,6 +53,7 @@ main() {
 
 self() {
 	log "INFO Generating a self-signed certificate"
+	cmd_status=0
 
 	cfg_dir="$AE_CONFIG_DIR"
 	if [ ! -d "$cfg_dir" ]; then
@@ -72,34 +73,38 @@ self() {
 		log "INFO Generating a self-signed certificate for the domain '$domain'"
 
 		mkdir "$dom_dir"
+		status=0
 
-		openssl req \
-			-days 1 \
-			-keyout "$dom_dir/privkey.pem" \
-			-newkey rsa:2048 \
-			-out "$dom_dir/fullchain.pem" \
-			-subj "/CN=localhost" \
-			-nodes \
-			-x509 \
-			> /dev/null 2>&1
+		_=$(
+			openssl req \
+				-days 1 \
+				-keyout "$dom_dir/privkey.pem" \
+				-newkey rsa:2048 \
+				-nodes \
+				-out "$dom_dir/fullchain.pem" \
+				-quiet \
+				-subj "/CN=localhost" \
+				-x509
+		) || status=$?
+
+		if [ $status -ne 0 ]; then
+			cmd_status=1
+			log "ERROR The self-signed certificate for the domain '$domain' has not been generated"
+			continue
+		fi
+
 		cp "$dom_dir/fullchain.pem" "$dom_dir/chain.pem"
-
-		file="$dom_dir/chain.pem"
-		# chgrp nginx "$file"
-		chmod 644 "$file"
-
-		file="$dom_dir/fullchain.pem"
-		# chgrp nginx "$file"
-		chmod 644 "$file"
-
-		file="$dom_dir/privkey.pem"
-		# chgrp nginx "$file"
-		chmod 640 "$file"
 	done
 
 	IFS="$ifs"
 
+	if [ $cmd_status -ne 0 ]; then
+		log "ERROR The self-signed certificate has not been generated"
+		return
+	fi
+
 	log "INFO The self-signed certificate has been generated"
+	reload
 }
 
 test() {
@@ -120,16 +125,8 @@ test() {
 		return $status
 	fi
 
-	log "INFO Reloading the nginx configuration"
-
-	_=$(reload) || status=$?
-
-	if [ $status -ne 0 ]; then
-		log "ERROR The nginx configuration has not been reloaded"
-		return $status
-	fi
-
 	log "INFO The test certificate has been obtained"
+	reload
 }
 
 prod() {
@@ -160,6 +157,9 @@ prod() {
 }
 
 reload() {
+	log "INFO Reloading the nginx configuration"
+	status=0
+
 	id=$(
 		docker ps --filter "volume=$AE_CONFIG_VOLUME" --quiet | \
 		grep -v "$(hostname)" | \
@@ -171,7 +171,15 @@ reload() {
 		return 1
 	fi
 
-	docker exec "$id" nginx -s reload
+	_=$(docker exec "$id" nginx -t) || status=$?
+
+	if [ $status -ne 0 ]; then
+		log "ERROR The nginx configuration has not been reloaded"
+		return $status
+	fi
+
+	log "INFO The nginx configuration has been reloaded"
+	return 0
 }
 
 domains() {
