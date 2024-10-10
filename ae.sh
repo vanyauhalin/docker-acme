@@ -7,13 +7,17 @@ AE_CONFIG_VOLUME="/etc/acme"
 # AE_CRON=
 AE_DAYS=30
 AE_DOCKER_SOCKET="/var/run/docker.sock"
-AE_DOCKER_URL="http://localhost/"
+AE_DOCKER_URL="http://localhost"
 # AE_DOMAINS=
 # AE_EMAIL=
 # AE_PING_URL=
 AE_SERVER="letsencrypt"
 AE_TEST_SERVER="letsencrypt_test"
 AE_WEBROOT_DIR="/var/www"
+
+# AE_NGINX_CONTAINER=
+# AE_NGINX_SERVICE=
+# openssl dhparam -out dhparams.pem 2048
 
 help() {
 	echo "Usage: ae <subcommand>"
@@ -59,18 +63,13 @@ self() {
 	IFS=","
 
 	for domain in $AE_DOMAINS; do
+		log "INFO Generating a self-signed certificate for the domain '$domain'"
 		status=0
 
 		dom_dir="$cfg_dir/$domain"
 		if [ -d "$dom_dir" ]; then
-			cmd_status=1
-			log "ERROR The certificate for the domain '$domain' already exists"
-			continue
+			mkdir "$dom_dir"
 		fi
-
-		log "INFO Generating a self-signed certificate for the domain '$domain'"
-
-		mkdir "$dom_dir"
 
 		_=$(
 			openssl req \
@@ -175,7 +174,7 @@ restart() {
 			--request GET \
 			--silent \
 			--unix-socket "$AE_DOCKER_SOCKET" \
-			"${AE_DOCKER_URL}containers/json?all=true&filters=%7B%22volume%22%3A%5B%22$AE_CONFIG_VOLUME%22%5D%7D" | \
+			"$AE_DOCKER_URL/containers/json?all=true&filters=%7B%22volume%22%3A%5B%22$AE_CONFIG_VOLUME%22%5D%7D" | \
 		grep -o '"Id":"[^"]*"' | \
 		cut -d'"' -f4 | \
 		grep -v "^$(hostname)" | \
@@ -193,7 +192,7 @@ restart() {
 			--request POST \
 			--silent \
 			--unix-socket "$AE_DOCKER_SOCKET" \
-			"${AE_DOCKER_URL}containers/$id/restart"
+			"$AE_DOCKER_URL/containers/$id/restart"
 	) || status=$?
 
 	if [ $status -ne 0 ]; then
@@ -214,7 +213,7 @@ reload() {
 			--request GET \
 			--silent \
 			--unix-socket "$AE_DOCKER_SOCKET" \
-			"${AE_DOCKER_URL}containers/json?filters=%7B%22volume%22%3A%5B%22$AE_CONFIG_VOLUME%22%5D%7D" | \
+			"$AE_DOCKER_URL/containers/json?filters=%7B%22volume%22%3A%5B%22$AE_CONFIG_VOLUME%22%5D%7D" | \
 		grep -o '"Id":"[^"]*"' | \
 		cut -d'"' -f4 | \
 		grep -v "^$(hostname)" | \
@@ -244,7 +243,7 @@ reload() {
 				"Tty": false,
 				"Cmd": ["nginx", "-s", "reload"]
 			}' \
-			"${AE_DOCKER_URL}containers/$id/exec" | \
+			"$AE_DOCKER_URL/containers/$id/exec" | \
 		grep -o '"Id":"[^"]*"' | \
 		cut -d'"' -f4
 	) || status=$?
@@ -267,7 +266,7 @@ reload() {
 			--request POST \
 			--silent \
 			--unix-socket /var/run/docker.sock \
-			"${AE_DOCKER_URL}exec/$id/start"
+			"$AE_DOCKER_URL/exec/$id/start"
 	) || status=$?
 
 	if [ $status -ne 0 ]; then
@@ -292,6 +291,14 @@ options() {
 	IFS="$ifs"
 
 	echo "$s"
+}
+
+conf() {
+	echo $1
+	# if example.com/certificate.conf return multiple echo
+	# if acme-challenge.conf return multiple echo
+	# if intermediate.conf return multiple echo
+	# if redirect.conf return multiple echo
 }
 
 log() {
