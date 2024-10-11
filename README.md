@@ -24,46 +24,7 @@ https://ssl-config.mozilla.org/#server=nginx&version=1.26.0&config=intermediate&
    └─ nginx.conf
 ```
 
-### Nginx Snippets
-
-#### example.com/certificate.conf
-
-```conf
-ssl_certificate /etc/acme/example.com/fullchain.pem;
-ssl_certificate_key /etc/acme/example.com/privkey.pem;
-ssl_trusted_certificate /etc/acme/example.com/chain.pem;
-```
-
-#### acme-challenge.conf
-
-```conf
-location /.well-known/acme-challenge {
-	root /var/www/$server_name;
-}
-```
-
-#### intermediate.conf
-
-```conf
-ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384:DHE-RSA-CHACHA20-POLY1305;
-ssl_dhparam /etc/nginx/ssl/acme/dhparam.pem;
-ssl_prefer_server_ciphers off;
-ssl_protocols TLSv1.2 TLSv1.3;
-ssl_session_cache shared:MozSSL:10m;
-ssl_session_timeout 1d;
-ssl_stapling on;
-ssl_stapling_verify on;
-```
-
-#### redirect.conf
-
-```conf
-location / {
-	return 301 https://$server_name$request_uri;
-}
-```
-
-### Nginx Configuration
+## Example Configuration
 
 ```conf
 worker_processes auto;
