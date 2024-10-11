@@ -67,6 +67,11 @@ self() {
 		return $status
 	fi
 
+	_=$(populate) || status=$?
+	if [ $status -ne 0 ]; then
+		return $status
+	fi
+
 	_=$(reload) || status=$?
 	if [ $status -ne 0 ]; then
 		_=$(restart) || status=$?
@@ -85,6 +90,11 @@ test() {
 		return $status
 	fi
 
+	_=$(populate) || status=$?
+	if [ $status -ne 0 ]; then
+		return $status
+	fi
+
 	reload
 }
 
@@ -96,34 +106,12 @@ prod() {
 		return $status
 	fi
 
-	reload
-}
-
-obtain() {
-	r_status=0
-
-	ifs="$IFS"
-	IFS=","
-
-	for domain in $AE_DOMAINS; do
-		status=0
-
-		case "$1" in
-		"self") _=$(openssl_self "$domain") || status=$? ;;
-		"test") _=$(acme_test "$domain") || status=$? ;;
-		"prod") _=$(acme_prod "$domain") || status=$? ;;
-		esac
-
-		if [ $status -ne 0 ]; then
-			r_status=1
-		fi
-	done
-
-	IFS="$ifs"
-
-	if [ $r_status -ne 0 ]; then
-		return $r_status
+	_=$(populate) || status=$?
+	if [ $status -ne 0 ]; then
+		return $status
 	fi
+
+	reload
 }
 
 schedule() {
@@ -136,6 +124,90 @@ run() {
 
 renew() {
 	echo renew
+}
+
+#
+# Private subocommands
+#
+
+obtain() {
+	status=0
+
+	ifs="$IFS"
+	IFS=","
+
+	for domain in $AE_DOMAINS; do
+		code=0
+
+		case "$1" in
+		"self") _=$(openssl_self "$domain") || code=$? ;;
+		"test") _=$(acme_test "$domain") || code=$? ;;
+		"prod") _=$(acme_prod "$domain") || code=$? ;;
+		esac
+
+		if [ $code -ne 0 ]; then
+			status=1
+			continue
+		fi
+	done
+
+	IFS="$ifs"
+
+	if [ $status -ne 0 ]; then
+		return $status
+	fi
+}
+
+populate() {
+	status=0
+
+	ifs="$IFS"
+	IFS=","
+
+	for domain in $AE_DOMAINS; do
+		code=0
+		content=$(nginx_certificate_conf "$domain")
+		file="$AE_NGINX_DIR/snippets/acme/$domain/certificate.conf"
+		_=$(nginx_echo "$content" "$file") || code=$?
+		if [ $code -ne 0 ]; then
+			status=1
+			continue
+		fi
+	done
+
+	IFS="$ifs"
+
+	content=$(nginx_acme_challenge_conf)
+	file="$AE_NGINX_DIR/snippets/acme/acme_challenge.conf"
+	_=$(nginx_echo "$content" "$file") || status=$?
+	if [ $status -ne 0 ]; then
+		return $status
+	fi
+
+	content=$(nginx_intermediate_conf)
+	file="$AE_NGINX_DIR/snippets/acme/intermediate.conf"
+	_=$(nginx_echo "$content" "$file") || status=$?
+	if [ $status -ne 0 ]; then
+		return $status
+	fi
+
+	content=$(nginx_redirect_conf)
+	file="$AE_NGINX_DIR/snippets/acme/redirect.conf"
+	_=$(nginx_echo "$content" "$file") || status=$?
+	if [ $status -ne 0 ]; then
+		return $status
+	fi
+
+	content=$(openssl_dhparam) || status=$?
+	if [ $status -ne 0 ]; then
+		return $status
+	fi
+
+	file="$AE_NGINX_DIR/ssl/acme/$AE_DHPARAM_FILE"
+	_=$(nginx_echo "$content" "$file") || status=$?
+	if [ $status -ne 0 ]; then
+		return $status
+	fi
 }
 
 reload() {
@@ -155,7 +227,7 @@ reload() {
 restart() {
 	status=0
 
-	id=$(nginx_id) || status=$? # not all
+	id=$(nginx_id) || status=$?
 	if [ $status -ne 0 ]; then
 		return $status
 	fi
@@ -199,14 +271,13 @@ openssl_self() {
 openssl_dhparam() {
 	status=0
 
-	_=$(
-		openssl dhparam \
-			-out "$AE_NGINX_DIR/ssl/acme/$AE_DHPARAM_FILE" \
-			"$AE_KEY_SIZE"
-	) || status=$?
+	result=$(openssl dhparam "$AE_KEY_SIZE" > /dev/null 2>&1) || status=$?
 	if [ $status -ne 0 ]; then
+		echo "$result"
 		return $status
 	fi
+
+	echo "$result"
 }
 
 #
@@ -278,45 +349,16 @@ nginx_id() {
 	echo "$id"
 }
 
-nginx_restart() {
-	status=0
+nginx_echo() {
+	docker_exec "$1" "[\"sh\", \"-c\", \"echo '$1' > '$2'\"]"
+}
 
-	_=$(docker_post "containers/$1/restart") || status=$?
-	if [ $status -ne 0 ]; then
-		return $status
-	fi
+nginx_restart() {
+	docker_post "containers/$1/restart"
 }
 
 nginx_reload() {
-	status=0
-
-	_=$(
-		docker_post "containers/$1/exec" '{
-			"AttachStdin": false,
-			"AttachStdout": true,
-			"AttachStderr": true,
-			"Tty": false,
-			"Cmd": ["nginx", "-s", "reload"]
-		}'
-	) || status=$?
-	if [ $status -ne 0 ]; then
-		return $status
-	fi
-
-	id=$(docker_id "$r")
-	if [ -z "$id" ]; then
-		return 1
-	fi
-
-	_=$(
-		docker_post "exec/$id/start" '{
-			"Detach": false,
-			"Tty": false
-		}'
-	) || status=$?
-	if [ $status -ne 0 ]; then
-		return $status
-	fi
+	docker_exec "$1" '["nginx", "-s", "reload"]'
 }
 
 nginx_certificate_conf() {
@@ -351,6 +393,38 @@ nginx_redirect_conf() {
 #
 # Docker utilities
 #
+
+docker_exec() {
+	status=0
+
+	_=$(
+		docker_post "containers/$1/exec" "{
+			\"AttachStdin\": false,
+			\"AttachStdout\": true,
+			\"AttachStderr\": true,
+			\"Tty\": false,
+			\"Cmd\": $2
+		}"
+	) || status=$?
+	if [ $status -ne 0 ]; then
+		return $status
+	fi
+
+	id=$(docker_id "$r")
+	if [ -z "$id" ]; then
+		return 1
+	fi
+
+	_=$(
+		docker_post "exec/$id/start" '{
+			"Detach": false,
+			"Tty": false
+		}'
+	) || status=$?
+	if [ $status -ne 0 ]; then
+		return $status
+	fi
+}
 
 docker_get() {
 	curl \
