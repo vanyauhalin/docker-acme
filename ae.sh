@@ -269,8 +269,16 @@ ping() {
 		return
 	fi
 
-	u=$(url "$u" "$1")
-	_=$(curl --max-time 10 --retry 5 "$u?rid=$2") || status=$?
+	_=$(
+		curl \
+			--header "Accept: text/plain" \
+			--header "User-Agent: $AE_USER_AGENT" \
+			--max-time 10 \
+			--request GET \
+			--retry 5 \
+			--silent \
+			"$(url "$u" "$1")?rid=$2"
+	) || status=$?
 	if [ $status -ne 0 ]; then
 		return $status
 	fi
