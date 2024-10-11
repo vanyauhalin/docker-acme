@@ -5,28 +5,28 @@ set -ue
 AE_VERSION="0.0.1"
 AE_USER_AGENT="ae $AE_VERSION"
 
-AE_CRON="0	3	*	*	6"
-AE_DAYS=30
-AE_DOMAINS=
-AE_EMAIL=
-AE_KEY_SIZE=2048
-AE_SERVER="letsencrypt"
-AE_TEST_SERVER="letsencrypt_test"
+: "${AE_CRON:="0	3	*	*	6"}"
+: "${AE_DAYS:=30}"
+: "${AE_DOMAINS:=""}"
+: "${AE_EMAIL:=""}"
+: "${AE_KEY_SIZE:=2048}"
+: "${AE_SERVER:="letsencrypt"}"
+: "${AE_TEST_SERVER:="letsencrypt_test"}"
 
-AE_ACME_DIR="/etc/acme"
-AE_NGINX_DIR="/etc/nginx"
-AE_WEBROOT_DIR="/var/www"
+: "${AE_ACME_DIR:="/etc/acme"}"
+: "${AE_NGINX_DIR:="/etc/nginx"}"
+: "${AE_WEBROOT_DIR:="/var/www"}"
 
-AE_CERT_FILE="cert.pem"
-AE_CHAIN_FILE="chain.pem"
-AE_DHPARAM_FILE="dhparam.pem"
-AE_FULLCHAIN_FILE="fullchain.pem"
-AE_PRIVKEY_FILE="privkey.pem"
+: "${AE_CERT_FILE:="cert.pem"}"
+: "${AE_CHAIN_FILE:="chain.pem"}"
+: "${AE_DHPARAM_FILE:="dhparam.pem"}"
+: "${AE_FULLCHAIN_FILE:="fullchain.pem"}"
+: "${AE_PRIVKEY_FILE:="privkey.pem"}"
 
-AE_DOCKER_SOCKET="/var/run/docker.sock"
-AE_DOCKER_URL="http://localhost/"
-AE_HEALTHCHECKS_URL=
-AE_NGINX_SERVICE="nginx"
+: "${AE_DOCKER_SOCKET:="/var/run/docker.sock"}"
+: "${AE_DOCKER_URL:="http://localhost/"}"
+: "${AE_HEALTHCHECKS_URL:=}"
+: "${AE_NGINX_SERVICE:="nginx"}"
 
 help() {
 	echo "Usage: ae <subcommand>"
@@ -262,7 +262,18 @@ restart() {
 }
 
 ping() {
-	curl --max-time 10 --retry 5 "$AE_HEALTHCHECKS_URL$1?rid=$2"
+	status=0
+
+	u="$AE_HEALTHCHECKS_URL"
+	if [ -z "$u" ]; then
+		return
+	fi
+
+	u=$(url "$u" "$1")
+	_=$(curl --max-time 10 --retry 5 "$u?rid=$2") || status=$?
+	if [ $status -ne 0 ]; then
+		return $status
+	fi
 }
 
 #
@@ -469,7 +480,7 @@ docker_get() {
 		--request GET \
 		--silent \
 		--unix-socket "$AE_DOCKER_SOCKET" \
-		"$(docker_url "$1")"
+		"$(url "$AE_DOCKER_URL" "$1")"
 }
 
 docker_post() {
@@ -481,15 +492,7 @@ docker_post() {
 		--request POST \
 		--silent \
 		--unix-socket "$AE_DOCKER_SOCKET" \
-		"$(docker_url "$1")"
-}
-
-docker_url() {
-	b="$AE_DOCKER_URL"
-	case "$b" in
-	*/) b="${b%/}" ;;
-	esac
-	echo "$b/$1"
+		"$(url "$AE_DOCKER_URL" "$1")"
 }
 
 docker_id() {
@@ -502,6 +505,14 @@ docker_id() {
 
 uuid() {
 	cat /proc/sys/kernel/random/uuid
+}
+
+url() {
+	b="$1"
+	case "$b" in
+	*/) b="${b%/}" ;;
+	esac
+	echo "$b/$2"
 }
 
 log() {
