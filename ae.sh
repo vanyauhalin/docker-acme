@@ -5,7 +5,7 @@ set -ue
 AE_VERSION="0.0.1"
 AE_USER_AGENT="ae $AE_VERSION"
 
-AE_CRON=
+AE_CRON="0	3	*	*	6"
 AE_DAYS=30
 AE_DOMAINS=
 AE_EMAIL=
@@ -25,8 +25,8 @@ AE_PRIVKEY_FILE="privkey.pem"
 
 AE_DOCKER_SOCKET="/var/run/docker.sock"
 AE_DOCKER_URL="http://localhost/"
+AE_HEALTHCHECKS_URL=
 AE_NGINX_SERVICE="nginx"
-AE_PING_URL=
 
 help() {
 	echo "Usage: ae <subcommand>"
@@ -41,7 +41,7 @@ help() {
 	echo "  renew       "
 	echo
 	echo "Environment variables:"
-	echo "  AE_DOMAINS"
+	echo "  "
 }
 
 main() {
@@ -62,7 +62,7 @@ main() {
 self() {
 	status=0
 
-	_=$(obtain self) || status=$?
+	_=$(cycle self) || status=$?
 	if [ $status -ne 0 ]; then
 		return $status
 	fi
@@ -85,7 +85,7 @@ self() {
 test() {
 	status=0
 
-	_=$(obtain test) || status=$?
+	_=$(cycle test) || status=$?
 	if [ $status -ne 0 ]; then
 		return $status
 	fi
@@ -101,7 +101,7 @@ test() {
 prod() {
 	status=0
 
-	_=$(obtain prod) || status=$?
+	_=$(cycle prod) || status=$?
 	if [ $status -ne 0 ]; then
 		return $status
 	fi
@@ -116,7 +116,7 @@ prod() {
 
 schedule() {
 	bin=$(realpath "$0")
-	run="$AE_CRON \"$bin\" run > /dev/stdout 2> /dev/stderr"
+	run="$AE_CRON	\"$bin\" run > /dev/stdout 2> /dev/stderr"
 
 	table=$(crontab -l 2> /dev/null)
 	if echo "$table" | grep -F "$run" > /dev/null 2>&1; then
@@ -127,18 +127,32 @@ schedule() {
 }
 
 run() {
-	echo run
+	status=0
+	rid=$(uuid)
+
+	_=$(ping start "$rid")
+	_=$(renew) || status=$?
+	_=$(ping $status "$rid")
+
+	return $status
 }
 
 renew() {
-	echo renew
+	status=0
+
+	_=$(cycle renew) || status=$?
+	if [ $status -ne 0 ]; then
+		return $status
+	fi
+
+	reload
 }
 
 #
 # Private subocommands
 #
 
-obtain() {
+cycle() {
 	status=0
 
 	ifs="$IFS"
@@ -151,6 +165,7 @@ obtain() {
 		"self") _=$(openssl_self "$domain") || code=$? ;;
 		"test") _=$(acme_test "$domain") || code=$? ;;
 		"prod") _=$(acme_prod "$domain") || code=$? ;;
+		"renew") _=$(acme_renew "$domain") || code=$? ;;
 		esac
 
 		if [ $code -ne 0 ]; then
@@ -246,6 +261,10 @@ restart() {
 	fi
 }
 
+ping() {
+	curl --max-time 10 --retry 5 "$AE_HEALTHCHECKS_URL$1?rid=$2"
+}
+
 #
 # OpenSSL utilities
 #
@@ -329,6 +348,13 @@ acme_prod() {
 	if [ $status -ne 0 ]; then
 		return $status
 	fi
+}
+
+acme_renew() {
+	acme \
+		--domain "$1" \
+		--force \
+		--renew
 }
 
 #
@@ -473,6 +499,10 @@ docker_id() {
 #
 # General utilities
 #
+
+uuid() {
+	cat /proc/sys/kernel/random/uuid
+}
 
 log() {
 	s="$1"
