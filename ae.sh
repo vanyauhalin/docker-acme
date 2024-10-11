@@ -2,22 +2,31 @@
 
 set -ue
 
-AE_CONFIG_DIR="/etc/acme"
-AE_CONFIG_VOLUME="/etc/acme"
-# AE_CRON=
+AE_VERSION="0.0.1"
+AE_USER_AGENT="ae $AE_VERSION"
+
+AE_CRON=
 AE_DAYS=30
-AE_DOCKER_SOCKET="/var/run/docker.sock"
-AE_DOCKER_URL="http://localhost"
-# AE_DOMAINS=
-# AE_EMAIL=
-# AE_PING_URL=
+AE_DOMAINS=
+AE_EMAIL=
+AE_KEY_SIZE=2048
 AE_SERVER="letsencrypt"
 AE_TEST_SERVER="letsencrypt_test"
+
+AE_ACME_DIR="/etc/acme"
+AE_NGINX_DIR="/etc/nginx"
 AE_WEBROOT_DIR="/var/www"
 
-# AE_NGINX_CONTAINER=
-# AE_NGINX_SERVICE=
-# openssl dhparam -out dhparams.pem 2048
+AE_CERT_FILE="cert.pem"
+AE_CHAIN_FILE="chain.pem"
+AE_DHPARAM_FILE="dhparam.pem"
+AE_FULLCHAIN_FILE="fullchain.pem"
+AE_PRIVKEY_FILE="privkey.pem"
+
+AE_DOCKER_SOCKET="/var/run/docker.sock"
+AE_DOCKER_URL="http://localhost/"
+AE_NGINX_SERVICE="nginx"
+AE_PING_URL=
 
 help() {
 	echo "Usage: ae <subcommand>"
@@ -32,124 +41,89 @@ help() {
 	echo "  renew       "
 	echo
 	echo "Environment variables:"
-	echo "  AE_DOMAINS      A comma-separated list of domains"
+	echo "  AE_DOMAINS"
 }
 
 main() {
 	cmd=${1-""}
 	case "$cmd" in
-	"") help; return 1;;
-	"help") help;;
-	"self") self;;
-	"test") test;;
-	"prod") prod;;
-	"schedule") schedule;;
-	"run") run;;
-	"renew") renew;;
-	*) return 1;;
+	"") help; return 1 ;;
+	"help") help ;;
+	"self") self ;;
+	"test") test ;;
+	"prod") prod ;;
+	"schedule") schedule ;;
+	"run") run ;;
+	"renew") renew ;;
+	*) return 1 ;;
 	esac
 }
 
 self() {
-	log "INFO Generating a self-signed certificate"
-	cmd_status=0
+	status=0
 
-	cfg_dir="$AE_CONFIG_DIR"
-	if [ ! -d "$cfg_dir" ]; then
-		mkdir -p "$cfg_dir"
+	_=$(obtain self) || status=$?
+	if [ $status -ne 0 ]; then
+		return $status
 	fi
+
+	_=$(reload) || status=$?
+	if [ $status -ne 0 ]; then
+		_=$(restart) || status=$?
+	fi
+
+	if [ $status -ne 0 ]; then
+		return $status
+	fi
+}
+
+test() {
+	status=0
+
+	_=$(obtain test) || status=$?
+	if [ $status -ne 0 ]; then
+		return $status
+	fi
+
+	reload
+}
+
+prod() {
+	status=0
+
+	_=$(obtain prod) || status=$?
+	if [ $status -ne 0 ]; then
+		return $status
+	fi
+
+	reload
+}
+
+obtain() {
+	r_status=0
 
 	ifs="$IFS"
 	IFS=","
 
 	for domain in $AE_DOMAINS; do
-		log "INFO Generating a self-signed certificate for the domain '$domain'"
 		status=0
 
-		dom_dir="$cfg_dir/$domain"
-		if [ -d "$dom_dir" ]; then
-			mkdir "$dom_dir"
-		fi
-
-		_=$(
-			openssl req \
-				-days 1 \
-				-keyout "$dom_dir/privkey.pem" \
-				-newkey rsa:2048 \
-				-nodes \
-				-out "$dom_dir/fullchain.pem" \
-				-quiet \
-				-subj "/CN=localhost" \
-				-x509
-		) || status=$?
+		case "$1" in
+		"self") _=$(openssl_self "$domain") || status=$? ;;
+		"test") _=$(acme_test "$domain") || status=$? ;;
+		"prod") _=$(acme_prod "$domain") || status=$? ;;
+		esac
 
 		if [ $status -ne 0 ]; then
-			cmd_status=1
-			log "ERROR The self-signed certificate for the domain '$domain' has not been generated"
-			continue
+			r_status=1
 		fi
-
-		cp "$dom_dir/fullchain.pem" "$dom_dir/chain.pem"
 	done
 
 	IFS="$ifs"
 
-	if [ $cmd_status -ne 0 ]; then
-		log "ERROR The self-signed certificate has not been generated"
-		return
+	if [ $r_status -ne 0 ]; then
+		return $r_status
 	fi
-
-	log "INFO The self-signed certificate has been generated"
-	restart
-}
-
-test() {
-	log "INFO Obtaining a test certificate"
-	status=0
-
-	# shellcheck disable=SC2046
-	_=$(
-		acme \
-			--issue \
-			--server "$AE_TEST_SERVER" \
-			--test \
-			$(options)
-	) || status=$?
-
-	if [ $status -ne 0 ]; then
-		log "ERROR The test certificate has not been obtained"
-		return $status
-	fi
-
-	log "INFO The test certificate has been obtained"
-	reload
-}
-
-prod() {
-	log "INFO Obtaining a production certificate"
-	status=0
-
-	# shellcheck disable=SC2046
-	_=$(
-		acme \
-			--ca-file "$AE_CONFIG_DIR/chain.pem" \
-			--cert-file "$AE_CONFIG_DIR/cert.pem" \
-			--days "$AE_DAYS" \
-			--email "$AE_EMAIL" \
-			--fullchain-file "$AE_CONFIG_DIR/fullchain.pem" \
-			--install-cert \
-			--key-file "$AE_CONFIG_DIR/privkey.pem" \
-			--no-cron \
-			--server "$AE_SERVER" \
-			$(options)
-	) || status=$?
-
-	if [ $status -ne 0 ]; then
-		log "ERROR The production certificate has not been obtained"
-		return $status
-	fi
-
-	log "INFO The production certificate has been obtained"
 }
 
 schedule() {
@@ -164,142 +138,259 @@ renew() {
 	echo renew
 }
 
-restart() {
-	log "INFO Restarting the nginx container"
-	status=0
-
-	id=$(
-		curl \
-			--header "Content-Type: application/json" \
-			--request GET \
-			--silent \
-			--unix-socket "$AE_DOCKER_SOCKET" \
-			"$AE_DOCKER_URL/containers/json?all=true&filters=%7B%22volume%22%3A%5B%22$AE_CONFIG_VOLUME%22%5D%7D" | \
-		grep -o '"Id":"[^"]*"' | \
-		cut -d'"' -f4 | \
-		grep -v "^$(hostname)" | \
-		head -n 1
-	)
-
-	if [ -z "$id" ]; then
-		log "ERROR The container has not been found"
-		return 1
-	fi
-
-	_=$(
-		curl \
-			--header "Content-Type: application/json" \
-			--request POST \
-			--silent \
-			--unix-socket "$AE_DOCKER_SOCKET" \
-			"$AE_DOCKER_URL/containers/$id/restart"
-	) || status=$?
-
-	if [ $status -ne 0 ]; then
-		log "ERROR The container has not been restarted"
-		return $status
-	fi
-
-	log "INFO The container has been restarted"
-}
-
 reload() {
-	log "INFO Reloading the nginx configuration"
 	status=0
 
-	id=$(
-		curl \
-			--header "Content-Type: application/json" \
-			--request GET \
-			--silent \
-			--unix-socket "$AE_DOCKER_SOCKET" \
-			"$AE_DOCKER_URL/containers/json?filters=%7B%22volume%22%3A%5B%22$AE_CONFIG_VOLUME%22%5D%7D" | \
-		grep -o '"Id":"[^"]*"' | \
-		cut -d'"' -f4 | \
-		grep -v "^$(hostname)" | \
-		head -n 1
-	) || status=$?
-
+	id=$(nginx_id running) || status=$?
 	if [ $status -ne 0 ]; then
-		log "ERROR The container has not been found"
 		return $status
 	fi
 
+	_=$(nginx_reload "$id") || status=$?
+	if [ $status -ne 0 ]; then
+		return $status
+	fi
+}
+
+restart() {
+	status=0
+
+	id=$(nginx_id) || status=$? # not all
+	if [ $status -ne 0 ]; then
+		return $status
+	fi
+
+	_=$(nginx_restart "$id") || status=$?
+	if [ $status -ne 0 ]; then
+		return $status
+	fi
+}
+
+#
+# OpenSSL utilities
+#
+
+openssl_self() {
+	status=0
+
+	dir="$AE_ACME_DIR/$1"
+	if [ ! -d "$dir" ]; then
+		mkdir -p "$dir"
+	fi
+
+	_=$(
+		openssl req \
+			-days 1 \
+			-keyout "$dir/$AE_PRIVKEY_FILE" \
+			-newkey "rsa:$AE_KEY_SIZE" \
+			-nodes \
+			-out "$1/$AE_FULLCHAIN_FILE" \
+			-quiet \
+			-subj "/CN=localhost" \
+			-x509
+	) || status=$?
+	if [ $status -ne 0 ]; then
+		return $status
+	fi
+
+	cp "$dir/$AE_FULLCHAIN_FILE" "$dir/$AE_CHAIN_FILE"
+}
+
+openssl_dhparam() {
+	status=0
+
+	_=$(
+		openssl dhparam \
+			-out "$AE_NGINX_DIR/ssl/acme/$AE_DHPARAM_FILE" \
+			"$AE_KEY_SIZE"
+	) || status=$?
+	if [ $status -ne 0 ]; then
+		return $status
+	fi
+}
+
+#
+# acme.sh utilities
+#
+
+acme_test() {
+	acme \
+		--domain "$1" \
+		--issue \
+		--server "$AE_TEST_SERVER" \
+		--test \
+		--webroot "$AE_WEBROOT_DIR/$1"
+}
+
+acme_prod() {
+	status=0
+
+	_=$(
+		acme \
+			--days "$AE_DAYS" \
+			--domain "$1" \
+			--email "$AE_EMAIL" \
+			--issue \
+			--server "$AE_SERVER" \
+			--webroot "$AE_WEBROOT_DIR/$1"
+	) || status=$?
+	if [ $status -ne 0 ]; then
+		return $status
+	fi
+
+	_=$(
+		acme \
+			--ca-file "$AE_ACME_DIR/$1/$AE_CHAIN_FILE" \
+			--cert-file "$AE_ACME_DIR/$1/$AE_CERT_FILE" \
+			--fullchain-file "$AE_ACME_DIR/$1/$AE_FULLCHAIN_FILE" \
+			--install-cert \
+			--key-file "$AE_ACME_DIR/$1/$AE_PRIVKEY_FILE" \
+			--no-cron
+	) || status=$?
+	if [ $status -ne 0 ]; then
+		return $status
+	fi
+}
+
+#
+# Nginx utilities
+#
+
+nginx_id() {
+	status=0
+
+	filters="{\"label\": [\"com.docker.compose.service=$AE_NGINX_SERVICE\"]"
+	if [ "$1" = "running" ]; then
+		filters="$filters, \"status\": [\"running\"]"
+	fi
+	filters="$filters}"
+
+	_=$(docker_get containers/json "filters=$filters") || status=$?
+	if [ $status -ne 0 ]; then
+		return $status
+	fi
+
+	id=$(docker_id "$r")
 	if [ -z "$id" ]; then
-		log "ERROR The container has not been found"
 		return 1
 	fi
 
-	id=$(
-		curl \
-			--header "Content-Type: application/json" \
-			--request POST \
-			--silent \
-			--unix-socket "$AE_DOCKER_SOCKET" \
-			--data '{
-				"AttachStdin": false,
-				"AttachStdout": true,
-				"AttachStderr": true,
-				"Tty": false,
-				"Cmd": ["nginx", "-s", "reload"]
-			}' \
-			"$AE_DOCKER_URL/containers/$id/exec" | \
-		grep -o '"Id":"[^"]*"' | \
-		cut -d'"' -f4
-	) || status=$?
+	echo "$id"
+}
 
+nginx_restart() {
+	status=0
+
+	_=$(docker_post "containers/$1/restart") || status=$?
 	if [ $status -ne 0 ]; then
-		log "ERROR The nginx configuration has not been reloaded"
+		return $status
+	fi
+}
+
+nginx_reload() {
+	status=0
+
+	_=$(
+		docker_post "containers/$1/exec" '{
+			"AttachStdin": false,
+			"AttachStdout": true,
+			"AttachStderr": true,
+			"Tty": false,
+			"Cmd": ["nginx", "-s", "reload"]
+		}'
+	) || status=$?
+	if [ $status -ne 0 ]; then
 		return $status
 	fi
 
+	id=$(docker_id "$r")
 	if [ -z "$id" ]; then
-		log "ERROR The nginx configuration has not been reloaded"
 		return 1
 	fi
 
 	_=$(
-		curl \
-			--data '{"Detach": false, "Tty": false}' \
-			--header "Content-Type: application/json" \
-			--output - \
-			--request POST \
-			--silent \
-			--unix-socket /var/run/docker.sock \
-			"$AE_DOCKER_URL/exec/$id/start"
+		docker_post "exec/$id/start" '{
+			"Detach": false,
+			"Tty": false
+		}'
 	) || status=$?
-
 	if [ $status -ne 0 ]; then
-		log "ERROR The nginx configuration has not been reloaded"
 		return $status
 	fi
-
-	log "INFO The nginx configuration has been reloaded"
 }
 
-options() {
-	s=""
-
-	ifs="$IFS"
-	IFS=","
-
-	for domain in $AE_DOMAINS; do
-		s="${s} --domain ${domain}"
-		s="${s} --webroot ${AE_WEBROOT_DIR}/${domain}"
-	done
-
-	IFS="$ifs"
-
-	echo "$s"
+nginx_certificate_conf() {
+	echo "ssl_certificate $AE_ACME_DIR/$1/$AE_FULLCHAIN_FILE;"
+	echo "ssl_certificate_key $AE_ACME_DIR/$1/$AE_PRIVKEY_FILE;"
+	echo "ssl_trusted_certificate $AE_ACME_DIR/$1/$AE_CHAIN_FILE;"
 }
 
-conf() {
-	echo $1
-	# if example.com/certificate.conf return multiple echo
-	# if acme-challenge.conf return multiple echo
-	# if intermediate.conf return multiple echo
-	# if redirect.conf return multiple echo
+nginx_acme_challenge_conf() {
+	echo "location /.well-known/acme-challenge {"
+	echo "	root $AE_WEBROOT_DIR/\$server_name;"
+	echo "}"
 }
+
+nginx_intermediate_conf() {
+	echo "ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384:DHE-RSA-CHACHA20-POLY1305;"
+	echo "ssl_dhparam $AE_NGINX_DIR/ssl/acme/$AE_DHPARAM_FILE;"
+	echo "ssl_prefer_server_ciphers off;"
+	echo "ssl_protocols TLSv1.2 TLSv1.3;"
+	echo "ssl_session_cache shared:MozSSL:10m;"
+	echo "ssl_session_timeout 1d;"
+	echo "ssl_stapling on;"
+	echo "ssl_stapling_verify on;"
+}
+
+nginx_redirect_conf() {
+	echo "location / {"
+	echo "	return 301 https://\$server_name\$request_uri;"
+	echo "}"
+}
+
+#
+# Docker utilities
+#
+
+docker_get() {
+	curl \
+		--data-urlencode "$2" \
+		--get \
+		--header "Accept: application/json" \
+		--header "User-Agent: $AE_USER_AGENT" \
+		--request GET \
+		--silent \
+		--unix-socket "$AE_DOCKER_SOCKET" \
+		"$(docker_url "$1")"
+}
+
+docker_post() {
+	curl \
+		--data "$2" \
+		--header "Accept: application/json" \
+		--header "Content-Type: application/json" \
+		--header "User-Agent: $AE_USER_AGENT" \
+		--request POST \
+		--silent \
+		--unix-socket "$AE_DOCKER_SOCKET" \
+		"$(docker_url "$1")"
+}
+
+docker_url() {
+	b="$AE_DOCKER_URL"
+	case "$b" in
+	*/) b="${b%/}" ;;
+	esac
+	echo "$b/$1"
+}
+
+docker_id() {
+	echo "$1" | grep -o '"Id":"[^"]*"' | cut -d'"' -f4
+}
+
+#
+# General utilities
+#
 
 log() {
 	s="$1"
@@ -314,5 +405,9 @@ log() {
 
 	printf "%b" "$(date +'%Y-%m-%d %H:%M:%S') $s\n"
 }
+
+#
+# Entry point
+#
 
 main "$@"
