@@ -115,7 +115,15 @@ prod() {
 }
 
 schedule() {
-	echo schedule
+	bin=$(realpath "$0")
+	run="$AE_CRON \"$bin\" run > /dev/stdout 2> /dev/stderr"
+
+	table=$(crontab -l 2> /dev/null)
+	if echo "$table" | grep -F "$run" > /dev/null 2>&1; then
+		return
+	fi
+
+	(echo "$table"; echo "$run") | crontab -
 }
 
 run() {
