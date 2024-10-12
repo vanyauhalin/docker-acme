@@ -40,7 +40,7 @@ help() {
 	echo "  test        Obtains test certificates"
 	echo "  prod        Obtains production certificates"
 	echo "  schedule    Schedules certificate renewal"
-	echo "  exec        Executes scheduled operations"
+	echo "  run         Runs scheduled operations"
 	echo "  renew       Renews existing certificates"
 	echo
 	echo "Environment variables:"
@@ -86,8 +86,8 @@ main() {
 	"schedule")
 		schedule
 		;;
-	"exec")
-		exec
+	"run")
+		run
 		;;
 	"renew")
 		renew
@@ -187,7 +187,7 @@ schedule() {
 	fi
 
 	bin=$(realpath "$0")
-	cmd="$AE_CRON	\"$bin\" exec >> \"$AE_CRON_STDOUT\" 2>> \"$AE_CRON_STDERR\""
+	cmd="$AE_CRON	\"$bin\" run >> \"$AE_CRON_STDOUT\" 2>> \"$AE_CRON_STDERR\""
 
 	table=$(crontab -l 2> /dev/null)
 	if echo "$table" | grep -F "$cmd" > /dev/null 2>&1; then
@@ -199,8 +199,8 @@ schedule() {
 	log "INFO Successfully scheduled renewal"
 }
 
-exec() {
-	log "INFO Executing scheduled operations"
+run() {
+	log "INFO Running scheduled operations"
 	status=0
 	rid=$(uuid)
 
@@ -209,9 +209,9 @@ exec() {
 	_=$(ping $status "$rid")
 
 	if [ $status -ne 0 ]; then
-		log "ERROR Failed to execute scheduled operations with status '$status'"
+		log "ERROR Failed to run scheduled operations with status '$status'"
 	else
-		log "INFO Successfully executed scheduled operations"
+		log "INFO Successfully ran scheduled operations"
 	fi
 
 	return $status
