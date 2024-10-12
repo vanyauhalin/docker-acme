@@ -184,6 +184,11 @@ cycle() {
 populate() {
 	status=0
 
+	id=$(nginx_id) || status=$?
+	if [ $status -ne 0 ]; then
+		return $status
+	fi
+
 	ifs="$IFS"
 	IFS=","
 
@@ -191,7 +196,7 @@ populate() {
 		code=0
 		content=$(nginx_certificate_conf "$domain")
 		file="$AE_NGINX_DIR/snippets/acme/$domain/certificate.conf"
-		_=$(nginx_echo "$content" "$file") || code=$?
+		_=$(nginx_echo "$id" "$content" "$file") || code=$?
 		if [ $code -ne 0 ]; then
 			status=1
 			continue
@@ -202,21 +207,21 @@ populate() {
 
 	content=$(nginx_acme_challenge_conf)
 	file="$AE_NGINX_DIR/snippets/acme/acme_challenge.conf"
-	_=$(nginx_echo "$content" "$file") || status=$?
+	_=$(nginx_echo "$id" "$content" "$file") || status=$?
 	if [ $status -ne 0 ]; then
 		return $status
 	fi
 
 	content=$(nginx_intermediate_conf)
 	file="$AE_NGINX_DIR/snippets/acme/intermediate.conf"
-	_=$(nginx_echo "$content" "$file") || status=$?
+	_=$(nginx_echo "$id" "$content" "$file") || status=$?
 	if [ $status -ne 0 ]; then
 		return $status
 	fi
 
 	content=$(nginx_redirect_conf)
 	file="$AE_NGINX_DIR/snippets/acme/redirect.conf"
-	_=$(nginx_echo "$content" "$file") || status=$?
+	_=$(nginx_echo "$id" "$content" "$file") || status=$?
 	if [ $status -ne 0 ]; then
 		return $status
 	fi
@@ -227,7 +232,7 @@ populate() {
 	fi
 
 	file="$AE_NGINX_DIR/ssl/acme/$AE_DHPARAM_FILE"
-	_=$(nginx_echo "$content" "$file") || status=$?
+	_=$(nginx_echo "$id" "$content" "$file") || status=$?
 	if [ $status -ne 0 ]; then
 		return $status
 	fi
@@ -318,7 +323,12 @@ openssl_self() {
 openssl_dhparam() {
 	status=0
 
-	result=$(openssl dhparam -quiet "$AE_KEY_SIZE" 2>&1) || status=$?
+	result=$(
+		openssl dhparam \
+			-quiet \
+			"$AE_KEY_SIZE" \
+			2>&1
+	) || status=$?
 	if [ $status -ne 0 ]; then
 		echo "$result"
 		return $status
@@ -404,7 +414,7 @@ nginx_id() {
 }
 
 nginx_echo() {
-	docker_exec "$1" "[\"sh\", \"-c\", \"echo '$1' > '$2'\"]"
+	docker_exec "$1" "[\"sh\", \"-c\", \"echo '$2' > '$3'\"]"
 }
 
 nginx_restart() {
