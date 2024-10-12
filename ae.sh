@@ -302,10 +302,11 @@ openssl_self() {
 			-keyout "$dir/$AE_PRIVKEY_FILE" \
 			-newkey "rsa:$AE_KEY_SIZE" \
 			-nodes \
-			-out "$1/$AE_FULLCHAIN_FILE" \
+			-out "$dir/$AE_FULLCHAIN_FILE" \
 			-quiet \
 			-subj "/CN=localhost" \
-			-x509
+			-x509 \
+			2>&1
 	) || status=$?
 	if [ $status -ne 0 ]; then
 		return $status
@@ -317,7 +318,7 @@ openssl_self() {
 openssl_dhparam() {
 	status=0
 
-	result=$(openssl dhparam "$AE_KEY_SIZE" > /dev/null 2>&1) || status=$?
+	result=$(openssl dhparam -quiet "$AE_KEY_SIZE" 2>&1) || status=$?
 	if [ $status -ne 0 ]; then
 		echo "$result"
 		return $status
