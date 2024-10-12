@@ -400,12 +400,12 @@ nginx_id() {
 	fi
 	filters="$filters}"
 
-	_=$(docker_get containers/json "filters=$filters") || status=$?
+	response=$(docker_get containers/json "filters=$filters") || status=$?
 	if [ $status -ne 0 ]; then
 		return $status
 	fi
 
-	id=$(docker_id "$r")
+	id=$(docker_id "$response")
 	if [ -z "$id" ]; then
 		return 1
 	fi
