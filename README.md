@@ -4,24 +4,28 @@ https://ssl-config.mozilla.org/#server=nginx&version=1.26.0&config=intermediate&
 ## File Structure
 
 ```txt
-/etc
-├─ acme
-│  └─ example.com
-│     ├─ chain.pem
-│     ├─ fullchain.pem
-│     └─ privkey.pem
-└─ nginx
-   ├─ snippets
-   │  └─ acme
-   │     ├─ example.com
-   │     │  └─ certificate.conf
-   │     ├─ acme-challenge.conf
-   │     ├─ intermediate.conf
-   │     └─ redirect.conf
-   ├─ ssl
-   │  └─ acme
-   │     └─ dhparam.pem
-   └─ nginx.conf
+/
+├─ etc
+│  ├─ acme
+│  │  └─ example.com
+│  │     ├─ chain.pem
+│  │     ├─ fullchain.pem
+│  │     └─ privkey.pem
+│  └─ nginx
+│     ├─ snippets
+│     │  └─ acme
+│     │     ├─ example.com
+│     │     │  └─ certificate.conf
+│     │     ├─ acme-challenge.conf
+│     │     ├─ intermediate.conf
+│     │     └─ redirect.conf
+│     ├─ ssl
+│     │  └─ acme
+│     │     └─ dhparam.pem
+│     └─ nginx.conf
+└─ var
+   └─ www
+      └─ example.com
 ```
 
 ## Example Configuration
