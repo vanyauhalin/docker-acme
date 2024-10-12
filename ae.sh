@@ -32,16 +32,34 @@ help() {
 	echo "Usage: ae <subcommand>"
 	echo
 	echo "Subcommands:"
-	echo "  help        "
-	echo "  self        "
-	echo "  test        "
-	echo "  prod        "
-	echo "  schedule    "
-	echo "  run         "
-	echo "  renew       "
+	echo "  help        Shows this help message"
+	echo "  self        Obtains self-signed certificates"
+	echo "  test        Obtains test certificates"
+	echo "  prod        Obtains production certificates"
+	echo "  schedule    Schedules certificate renewal"
+	echo "  exec        Executes scheduled operations"
+	echo "  renew       Renews existing certificates"
 	echo
 	echo "Environment variables:"
-	echo "  "
+	echo "  AE_CRON                Cron schedule for certificate renewal (computed: $AE_CRON)"
+	echo "  AE_DAYS                Validity period for certificates when obtaining new ones (computed: $AE_DAYS)"
+	echo "  AE_DOMAINS             Comma-separated list of domains to obtain certificates for (computed: $AE_DOMAINS)"
+	echo "  AE_EMAIL               Email address to use when obtaining certificates (computed: $AE_EMAIL)"
+	echo "  AE_KEY_SIZE            Size of the RSA key to be generated (computed: $AE_KEY_SIZE)"
+	echo "  AE_SERVER              Server to use when obtaining production certificates (computed: $AE_SERVER)"
+	echo "  AE_TEST_SERVER         Server to use when obtaining test certificates (computed: $AE_TEST_SERVER)"
+	echo "  AE_ACME_DIR            Directory where certificates are stored (computed: $AE_ACME_DIR)"
+	echo "  AE_NGINX_DIR           Directory where Nginx configuration is stored (computed: $AE_NGINX_DIR)"
+	echo "  AE_WEBROOT_DIR         Directory where challenges are stored (computed: $AE_WEBROOT_DIR)"
+	echo "  AE_CERT_FILE           Name of the certificate file (computed: $AE_CERT_FILE)"
+	echo "  AE_CHAIN_FILE          Name of the chain file (computed: $AE_CHAIN_FILE)"
+	echo "  AE_DHPARAM_FILE        Name of the DH parameters file (computed: $AE_DHPARAM_FILE)"
+	echo "  AE_FULLCHAIN_FILE      Name of the full chain file (computed: $AE_FULLCHAIN_FILE)"
+	echo "  AE_PRIVKEY_FILE        Name of the private key file (computed: $AE_PRIVKEY_FILE)"
+	echo "  AE_DOCKER_SOCKET       Path to the Docker socket (computed: $AE_DOCKER_SOCKET)"
+	echo "  AE_DOCKER_URL          URL to the Docker API (computed: $AE_DOCKER_URL)"
+	echo "  AE_HEALTHCHECKS_URL    URL to Healthchecks API (computed: $AE_HEALTHCHECKS_URL)"
+	echo "  AE_NGINX_SERVICE       Name of the Nginx service (computed: $AE_NGINX_SERVICE)"
 }
 
 main() {
@@ -65,8 +83,8 @@ main() {
 	"schedule")
 		schedule
 		;;
-	"run")
-		run
+	"exec")
+		exec
 		;;
 	"renew")
 		renew
@@ -81,22 +99,22 @@ self() {
 	log "INFO Obtaining self-signed certificates"
 	status=0
 
-	result=$(cycle self) || status=$?
+	result=$(cycle self 2>&1) || status=$?
 	if [ $status -ne 0 ]; then
 		log "ERROR Failed to obtain self-signed certificates with status '$status':\n$result"
 		return $status
 	fi
 
-	result=$(populate) || status=$?
+	result=$(populate 2>&1) || status=$?
 	if [ $status -ne 0 ]; then
 		log "ERROR Failed to populate Nginx configuration with status '$status':\n$result"
 		return $status
 	fi
 
-	result=$(reload) || status=$?
+	result=$(reload 2>&1) || status=$?
 	if [ $status -ne 0 ]; then
 		log "WARN Failed to reload Nginx with status '$status':\n$result"
-		result=$(restart) || status=$?
+		result=$(restart 2>&1) || status=$?
 	fi
 
 	if [ $status -ne 0 ]; then
@@ -111,19 +129,19 @@ test() {
 	log "INFO Obtaining test certificates"
 	status=0
 
-	result=$(cycle test) || status=$?
+	result=$(cycle test 2>&1) || status=$?
 	if [ $status -ne 0 ]; then
 		log "ERROR Failed to obtain test certificates with status '$status':\n$result"
 		return $status
 	fi
 
-	result=$(populate) || status=$?
+	result=$(populate 2>&1) || status=$?
 	if [ $status -ne 0 ]; then
 		log "ERROR Failed to populate Nginx configuration with status '$status':\n$result"
 		return $status
 	fi
 
-	result=$(reload) || status=$?
+	result=$(reload 2>&1) || status=$?
 	if [ $status -ne 0 ]; then
 		log "ERROR Failed to reload Nginx with status '$status':\n$result"
 		return $status
@@ -136,19 +154,19 @@ prod() {
 	log "INFO Obtaining production certificates"
 	status=0
 
-	result=$(cycle prod) || status=$?
+	result=$(cycle prod 2>&1) || status=$?
 	if [ $status -ne 0 ]; then
 		log "ERROR Failed to obtain production certificates with status '$status':\n$result"
 		return $status
 	fi
 
-	result=$(populate) || status=$?
+	result=$(populate 2>&1) || status=$?
 	if [ $status -ne 0 ]; then
 		log "ERROR Failed to populate Nginx configuration with status '$status':\n$result"
 		return $status
 	fi
 
-	result=$(reload) || status=$?
+	result=$(reload 2>&1) || status=$?
 	if [ $status -ne 0 ]; then
 		log "ERROR Failed to reload Nginx with status '$status':\n$result"
 		return $status
@@ -160,20 +178,20 @@ prod() {
 schedule() {
 	log "INFO Scheduling cron job for renewal"
 	bin=$(realpath "$0")
-	run="$AE_CRON	\"$bin\" run > /dev/stdout 2> /dev/stderr"
+	cmd="$AE_CRON	\"$bin\" exec > /dev/stdout 2> /dev/stderr"
 
 	table=$(crontab -l 2> /dev/null)
-	if echo "$table" | grep -F "$run" > /dev/null 2>&1; then
+	if echo "$table" | grep -F "$cmd" > /dev/null 2>&1; then
 		log "INFO Renewal already scheduled"
 		return
 	fi
 
-	(echo "$table"; echo "$run") | crontab -
+	(echo "$table"; echo "$cmd") | crontab -
 	log "INFO Successfully scheduled renewal"
 }
 
-run() {
-	log "INFO Running scheduled operations"
+exec() {
+	log "INFO Executing scheduled operations"
 	status=0
 	rid=$(uuid)
 
@@ -182,9 +200,9 @@ run() {
 	_=$(ping $status "$rid")
 
 	if [ $status -ne 0 ]; then
-		log "ERROR Failed to run scheduled operations with status '$status'"
+		log "ERROR Failed to execute scheduled operations with status '$status'"
 	else
-		log "INFO Successfully ran scheduled operations"
+		log "INFO Successfully executed scheduled operations"
 	fi
 
 	return $status
@@ -194,13 +212,13 @@ renew() {
 	log "INFO Renewing certificates"
 	status=0
 
-	result=$(cycle renew) || status=$?
+	result=$(cycle renew 2>&1) || status=$?
 	if [ $status -ne 0 ]; then
 		log "ERROR Failed to renew certificates with status '$status':\n$result"
 		return $status
 	fi
 
-	result=$(reload) || status=$?
+	result=$(reload 2>&1) || status=$?
 	if [ $status -ne 0 ]; then
 		log "ERROR Failed to reload Nginx with status '$status':\n$result"
 		return $status
@@ -210,48 +228,35 @@ renew() {
 }
 
 #
-# Private subocommands
+# Private subcommands
 #
 
 cycle() {
-	status=0
-
 	ifs="$IFS"
 	IFS=","
 
 	for domain in $AE_DOMAINS; do
 		case "$1" in
 		"self")
-			result=$(openssl_self "$domain") || status=$?
+			openssl_self "$domain"
 			;;
 		"test")
-			result=$(acme_test "$domain") || status=$?
+			acme_test "$domain"
 			;;
 		"prod")
-			result=$(acme_prod "$domain") || status=$?
+			acme_prod "$domain"
 			;;
 		"renew")
-			result=$(acme_renew "$domain") || status=$?
+			acme_renew "$domain"
 			;;
 		esac
-
-		if [ $status -ne 0 ]; then
-			echo "$result"
-			return $status
-		fi
 	done
 
 	IFS="$ifs"
 }
 
 populate() {
-	status=0
-
-	id=$(nginx_id) || status=$?
-	if [ $status -ne 0 ]; then
-		echo "$id"
-		return $status
-	fi
+	id=$(nginx_id)
 
 	ifs="$IFS"
 	IFS=","
@@ -259,107 +264,52 @@ populate() {
 	for domain in $AE_DOMAINS; do
 		content=$(nginx_certificate_conf "$domain")
 		file="$AE_NGINX_DIR/snippets/acme/$domain/certificate.conf"
-		result=$(nginx_echo "$id" "$content" "$file") || status=$?
-		if [ $status -ne 0 ]; then
-			echo "$result"
-			return $status
-		fi
+		nginx_echo "$id" "$content" "$file"
 	done
 
 	IFS="$ifs"
 
 	content=$(nginx_acme_challenge_conf)
 	file="$AE_NGINX_DIR/snippets/acme/acme_challenge.conf"
-	result=$(nginx_echo "$id" "$content" "$file") || status=$?
-	if [ $status -ne 0 ]; then
-		echo "$result"
-		return $status
-	fi
+	nginx_echo "$id" "$content" "$file"
 
 	content=$(nginx_intermediate_conf)
 	file="$AE_NGINX_DIR/snippets/acme/intermediate.conf"
-	result=$(nginx_echo "$id" "$content" "$file") || status=$?
-	if [ $status -ne 0 ]; then
-		echo "$result"
-		return $status
-	fi
+	nginx_echo "$id" "$content" "$file"
 
 	content=$(nginx_redirect_conf)
 	file="$AE_NGINX_DIR/snippets/acme/redirect.conf"
-	result=$(nginx_echo "$id" "$content" "$file") || status=$?
-	if [ $status -ne 0 ]; then
-		echo "$result"
-		return $status
-	fi
+	nginx_echo "$id" "$content" "$file"
 
-	content=$(openssl_dhparam) || status=$?
-	if [ $status -ne 0 ]; then
-		echo "$content"
-		return $status
-	fi
-
+	content=$(openssl_dhparam)
 	file="$AE_NGINX_DIR/ssl/acme/$AE_DHPARAM_FILE"
-	result=$(nginx_echo "$id" "$content" "$file") || status=$?
-	if [ $status -ne 0 ]; then
-		echo "$result"
-		return $status
-	fi
+	nginx_echo "$id" "$content" "$file"
 }
 
 reload() {
-	status=0
-
-	id=$(nginx_id running) || status=$?
-	if [ $status -ne 0 ]; then
-		echo "$id"
-		return $status
-	fi
-
-	result=$(nginx_reload "$id") || status=$?
-	if [ $status -ne 0 ]; then
-		echo "$result"
-		return $status
-	fi
+	id=$(nginx_id running)
+	nginx_reload "$id"
 }
 
 restart() {
-	status=0
-
-	id=$(nginx_id) || status=$?
-	if [ $status -ne 0 ]; then
-		echo "$id"
-		return $status
-	fi
-
-	result=$(nginx_restart "$id") || status=$?
-	if [ $status -ne 0 ]; then
-		echo "$result"
-		return $status
-	fi
+	id=$(nginx_id)
+	nginx_restart "$id"
 }
 
 ping() {
-	status=0
-
 	u="$AE_HEALTHCHECKS_URL"
 	if [ -z "$u" ]; then
 		return
 	fi
 
-	result=$(
-		curl \
-			--header "Accept: text/plain" \
-			--header "User-Agent: $AE_USER_AGENT" \
-			--max-time 10 \
-			--request GET \
-			--retry 5 \
-			--silent \
-			"$(url "$u" "$1")?rid=$2"
-	) || status=$?
-	if [ $status -ne 0 ]; then
-		echo "$result"
-		return $status
-	fi
+	curl \
+		--header "Accept: text/plain" \
+		--header "User-Agent: $AE_USER_AGENT" \
+		--max-time 10 \
+		--request GET \
+		--retry 5 \
+		--silent \
+		"$(url "$u" "$1")?rid=$2"
 }
 
 #
@@ -367,48 +317,26 @@ ping() {
 #
 
 openssl_self() {
-	status=0
-
 	dir="$AE_ACME_DIR/$1"
 	if [ ! -d "$dir" ]; then
 		mkdir -p "$dir"
 	fi
 
-	result=$(
-		openssl req \
-			-days 1 \
-			-keyout "$dir/$AE_PRIVKEY_FILE" \
-			-newkey "rsa:$AE_KEY_SIZE" \
-			-nodes \
-			-out "$dir/$AE_FULLCHAIN_FILE" \
-			-quiet \
-			-subj "/CN=localhost" \
-			-x509 \
-			2>&1
-	) || status=$?
-	if [ $status -ne 0 ]; then
-		echo "$result"
-		return $status
-	fi
+	openssl req \
+		-days 1 \
+		-keyout "$dir/$AE_PRIVKEY_FILE" \
+		-newkey "rsa:$AE_KEY_SIZE" \
+		-nodes \
+		-out "$dir/$AE_FULLCHAIN_FILE" \
+		-quiet \
+		-subj "/CN=localhost" \
+		-x509
 
 	cp "$dir/$AE_FULLCHAIN_FILE" "$dir/$AE_CHAIN_FILE"
 }
 
 openssl_dhparam() {
-	status=0
-
-	result=$(
-		openssl dhparam \
-			-quiet \
-			"$AE_KEY_SIZE" \
-			2>&1
-	) || status=$?
-	if [ $status -ne 0 ]; then
-		echo "$result"
-		return $status
-	fi
-
-	echo "$result"
+	openssl dhparam -quiet "$AE_KEY_SIZE"
 }
 
 #
@@ -425,35 +353,21 @@ acme_test() {
 }
 
 acme_prod() {
-	status=0
+	acme \
+		--days "$AE_DAYS" \
+		--domain "$1" \
+		--email "$AE_EMAIL" \
+		--issue \
+		--server "$AE_SERVER" \
+		--webroot "$AE_WEBROOT_DIR/$1"
 
-	result=$(
-		acme \
-			--days "$AE_DAYS" \
-			--domain "$1" \
-			--email "$AE_EMAIL" \
-			--issue \
-			--server "$AE_SERVER" \
-			--webroot "$AE_WEBROOT_DIR/$1"
-	) || status=$?
-	if [ $status -ne 0 ]; then
-		echo "$result"
-		return $status
-	fi
-
-	result=$(
-		acme \
-			--ca-file "$AE_ACME_DIR/$1/$AE_CHAIN_FILE" \
-			--cert-file "$AE_ACME_DIR/$1/$AE_CERT_FILE" \
-			--fullchain-file "$AE_ACME_DIR/$1/$AE_FULLCHAIN_FILE" \
-			--install-cert \
-			--key-file "$AE_ACME_DIR/$1/$AE_PRIVKEY_FILE" \
-			--no-cron
-	) || status=$?
-	if [ $status -ne 0 ]; then
-		echo "$result"
-		return $status
-	fi
+	acme \
+		--ca-file "$AE_ACME_DIR/$1/$AE_CHAIN_FILE" \
+		--cert-file "$AE_ACME_DIR/$1/$AE_CERT_FILE" \
+		--fullchain-file "$AE_ACME_DIR/$1/$AE_FULLCHAIN_FILE" \
+		--install-cert \
+		--key-file "$AE_ACME_DIR/$1/$AE_PRIVKEY_FILE" \
+		--no-cron
 }
 
 acme_renew() {
@@ -468,19 +382,13 @@ acme_renew() {
 #
 
 nginx_id() {
-	status=0
-
 	filters="{\"label\": [\"com.docker.compose.service=$AE_NGINX_SERVICE\"]"
 	if [ "$1" = "running" ]; then
 		filters="$filters, \"status\": [\"running\"]"
 	fi
 	filters="$filters}"
 
-	result=$(docker_get containers/json "filters=$filters") || status=$?
-	if [ $status -ne 0 ]; then
-		echo "$result"
-		return $status
-	fi
+	result=$(docker_get containers/json "filters=$filters")
 
 	id=$(docker_id "$result")
 	if [ -z "$id" ]; then
@@ -537,8 +445,6 @@ nginx_redirect_conf() {
 #
 
 docker_exec() {
-	status=0
-
 	result=$(
 		docker_post "containers/$1/exec" "{
 			\"AttachStdin\": false,
@@ -547,28 +453,18 @@ docker_exec() {
 			\"Tty\": false,
 			\"Cmd\": $2
 		}"
-	) || status=$?
-	if [ $status -ne 0 ]; then
-		echo "$result"
-		return $status
-	fi
+	)
 
-	id=$(docker_id "$r")
+	id=$(docker_id "$result")
 	if [ -z "$id" ]; then
 		echo "No exec ID found"
 		return 1
 	fi
 
-	result=$(
-		docker_post "exec/$id/start" '{
-			"Detach": false,
-			"Tty": false
-		}'
-	) || status=$?
-	if [ $status -ne 0 ]; then
-		echo "$result"
-		return $status
-	fi
+	docker_post "exec/$id/start" '{
+		"Detach": false,
+		"Tty": false
+	}'
 }
 
 docker_get() {
@@ -603,18 +499,20 @@ docker_id() {
 # General utilities
 #
 
-uuid() {
-	cat /proc/sys/kernel/random/uuid
-}
-
 url() {
 	b="$1"
+
 	case "$b" in
 	*/)
 		b="${b%/}"
 		;;
 	esac
+
 	echo "$b/$2"
+}
+
+uuid() {
+	cat /proc/sys/kernel/random/uuid
 }
 
 log() {
