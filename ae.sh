@@ -3,7 +3,10 @@
 set -ue
 
 AE_VERSION="0.0.1"
-AE_USER_AGENT="ae $AE_VERSION"
+AE_USER_AGENT="me.vanyauhalin.docker-acme $AE_VERSION"
+
+AE_CRON_STDOUT="/var/log/cron/output.log"
+AE_CRON_STDERR="/var/log/cron/error.log"
 
 : "${AE_CRON:="0	3	*	*	6"}"
 : "${AE_DAYS:=30}"
@@ -177,8 +180,14 @@ prod() {
 
 schedule() {
 	log "INFO Scheduling cron job for renewal"
+
+	if ! pgrep -x crond > /dev/null 2>&1; then
+		log "INFO Cron daemon is not running, starting it"
+		crond
+	fi
+
 	bin=$(realpath "$0")
-	cmd="$AE_CRON	\"$bin\" exec > /dev/stdout 2> /dev/stderr"
+	cmd="$AE_CRON	\"$bin\" exec >> \"$AE_CRON_STDOUT\" 2>> \"$AE_CRON_STDERR\""
 
 	table=$(crontab -l 2> /dev/null)
 	if echo "$table" | grep -F "$cmd" > /dev/null 2>&1; then
